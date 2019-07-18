@@ -90,14 +90,14 @@
 
                         
                         <li>
-                            <a href="/about/">About</a>
+                            <a href="/archives/">Archives</a>
                         </li>
                         
                     
 
                         
                         <li>
-                            <a href="/archives/">Archives</a>
+                            <a href="/about/">About</a>
                         </li>
                         
                     
@@ -204,7 +204,7 @@
 <p>middleware的设计采用了柯里化的方式，这样就便于compose，从而可以动态生成next方法。applyMiddleware方法中最关键的代码也就是下面这行代码：<br><figure class="highlight lisp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dispatch = compose(...chain)(<span class="name">store</span>.dispatch)</span><br></pre></td></tr></table></figure></p>
 <p>等价于<br><figure class="highlight armasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="symbol">dispatch</span> = <span class="built_in">f1</span>(<span class="built_in">f2</span>(<span class="built_in">f3</span>(store.dispatch))))</span><br></pre></td></tr></table></figure></p>
 <p>compose就是这样将middleware一层层嵌套包裹到原始的dispatch<br>方法上，得到一个增强后的dispatch方法。</p>
-<h3 id="Redux中间件实践"><a href="#Redux中间件实践" class="headerlink" title="Redux中间件实践"></a>Redux中间件实践</h3><p>举一个平常开发中可能遇到的一个栗子：</p>
+<h3 id="Redux中间件实践"><a href="#Redux中间件实践" class="headerlink" title="Redux中间件实践"></a>Redux中间件实践</h3><p>举一个平常开发中可能遇到的一个例子：</p>
 <p>我们在发起网络请求之前会让页面上出现loading的动画，完成请求之后再让loading消失。</p>
 <p>在不使用Redux时我们很容易办到：<br><figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">this</span>.setState(&#123; loading: <span class="literal">true</span> &#125;);</span><br><span class="line"><span class="keyword">this</span>.fetchData().then(</span><br><span class="line">    resp =&gt; &#123;</span><br><span class="line">        ...</span><br><span class="line">        <span class="keyword">this</span>.setState(&#123; loading: <span class="literal">false</span> &#125;);</span><br><span class="line">    &#125;</span><br><span class="line">);</span><br></pre></td></tr></table></figure></p>
 <p>但当我们使用redux之后，我们会在异步操作中发起网络请求，并将数据存储到Redux store中。由于网络请求被包裹在Redux的异步操作中，我们似乎就没法获取弹出loading的时机了。</p>
