@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Head tag -->
+<head><meta name="generator" content="Hexo 3.9.0">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="google-site-verification" content="xBT4GhYoi5qRD5tr338pgPM5OWHHIDR6mNg1a3euekI">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content>
+    <meta name="keyword" content>
+    <link rel="shortcut icon" href="/blog/img/favicon.ico">
+
+    <title>
+        
+          理解Redux中间件，这一篇就够了 - Turling的博客 | Turling Blog
+        
+    </title>
+
+    <link rel="canonical" href="https://hudingyu.github.io/blog/2019/07/17/理解Redux中间件，这一篇就够了/">
+
+    <!-- Bootstrap Core CSS -->
+    <link rel="stylesheet" href="/blog/css/bootstrap.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/blog/css/hux-blog.min.css">
+
+    <!-- Pygments Highlight CSS -->
+    <link rel="stylesheet" href="/blog/css/highlight.css">
+
+    <!-- Custom Fonts -->
+    <!-- <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css" rel="stylesheet" type="text/css"> -->
+    <!-- Hux change font-awesome CDN to qiniu -->
+    <link href="https://cdn.staticfile.org/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+
+
+    <!-- Hux Delete, sad but pending in China
+    <link href='http://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+    <link href='http://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/
+    css'>
+    -->
+
+
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+        <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+        <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+
+    <!-- ga & ba script hoook -->
+    <script></script>
+</head>
+
+
+<!-- hack iOS CSS :active style -->
+<body ontouchstart="">
+
+    <!-- Navigation -->
+<nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+    <div class="container-fluid">
+        <!-- Brand and toggle get grouped for better mobile display -->
+        <div class="navbar-header page-scroll">
+            <button type="button" class="navbar-toggle">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="/blog/">Turling Blog</a>
+        </div>
+
+        <!-- Collect the nav links, forms, and other content for toggling -->
+        <!-- Known Issue, found by Hux:
+            <nav>'s height woule be hold on by its content.
+            so, when navbar scale out, the <nav> will cover tags.
+            also mask any touch event of tags, unfortunately.
+        -->
+        <div id="huxblog_navbar">
+            <div class="navbar-collapse">
+                <ul class="nav navbar-nav navbar-right">
+                    <li>
+                        <a href="/blog/">Home</a>
+                    </li>
+
+                    
+
+                        
+                    
+
+                        
+                        <li>
+                            <a href="/blog/about/">About</a>
+                        </li>
+                        
+                    
+
+                        
+                        <li>
+                            <a href="/blog/archives/">Archives</a>
+                        </li>
+                        
+                    
+                    
+                </ul>
+            </div>
+        </div>
+        <!-- /.navbar-collapse -->
+    </div>
+    <!-- /.container -->
+</nav>
+<script>
+    // Drop Bootstarp low-performance Navbar
+    // Use customize navbar with high-quality material design animation
+    // in high-perf jank-free CSS3 implementation
+    var $body   = document.body;
+    var $toggle = document.querySelector('.navbar-toggle');
+    var $navbar = document.querySelector('#huxblog_navbar');
+    var $collapse = document.querySelector('.navbar-collapse');
+
+    $toggle.addEventListener('click', handleMagic)
+    function handleMagic(e){
+        if ($navbar.className.indexOf('in') > 0) {
+        // CLOSE
+            $navbar.className = " ";
+            // wait until animation end.
+            setTimeout(function(){
+                // prevent frequently toggle
+                if($navbar.className.indexOf('in') < 0) {
+                    $collapse.style.height = "0px"
+                }
+            },400)
+        }else{
+        // OPEN
+            $collapse.style.height = "auto"
+            $navbar.className += " in";
+        }
+    }
+</script>
+
+
+    <!-- Main Content -->
+    
+<!-- Image to hack wechat -->
+<!-- <img src="https://hudingyu.github.io/blog/img/icon_wechat.png" width="0" height="0"> -->
+<!-- <img src="{{ site.baseurl }}/{% if page.header-img %}{{ page.header-img }}{% else %}{{ site.header-img }}{% endif %}" width="0" height="0"> -->
+
+<!-- Post Header -->
+<style type="text/css">
+    header.intro-header{
+        background-image: url('post-bg-js-module.jpg')
+    }
+</style>
+<header class="intro-header" >
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                <div class="post-heading">
+                    <div class="tags">
+                        
+                          <a class="tag" href="/blog/tags/#Redux" title="Redux">Redux</a>
+                        
+                    </div>
+                    <h1>理解Redux中间件，这一篇就够了</h1>
+                    <h2 class="subheading"></h2>
+                    <span class="meta">
+                        Posted by Turling on
+                        2019-07-17
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- Post Content -->
+<article>
+    <div class="container">
+        <div class="row">
+
+    <!-- Post Container -->
+            <div class="
+                col-lg-8 col-lg-offset-2
+                col-md-10 col-md-offset-1
+                post-container">
+
+                <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>最近对项目中使用的Redux中间件进行了梳理，在此过程中对Redux中间件的原理也有了较为深刻的理解。所以抽空总结了一下，也希望能给读者们带来一些启发。</p>
+<p>这篇文章会介绍Redux中间件的工作机制，并通过源码分析来了解其原理，最后会通过一个例子介绍如何编写Redux中间件。</p>
+<h3 id="Redux中间件工作机制"><a href="#Redux中间件工作机制" class="headerlink" title="Redux中间件工作机制"></a>Redux中间件工作机制</h3><p>用过Redux中间件的朋友都知道redux给我们带来了强大的数据管理功能，然而Redux的强大之处还在于其可以通过扩展中间件来增强和丰富其功能。<br>其实，Redux中间件的功能就是提供一个自定义处理Action的方式，在middleware中我们可以对流入的action进行筛选，对于选中的action进行一些自定义的操作，最终生成一个新的action并派发（dispatch）下去。<br>下面通过两张图来对比一下是否使用Redux中间件时的差异。<br>首先是不使用中间件的redux数据流：<br><img src="without-middleware.png" alt="without-middleware"><br>不使用middleware时，在dispatch(action)时会直接送到reducer执行，并根据action的type更新返回相应的state。但在复杂得业务场景下，这种简单的机制很难满足我们的需求。<br><img src="with-middleware.png" alt="with-middleware"><br>通过增加中间件，我们就可以在action到达reducer之前对action进行拦截处理。并且middleware是可以自由组合的插件机制，这可以方便我们编写不同的middleware，并按照一定顺序组合这些middleware来满足我们的业务场景需求。简单来说，这个middleware的机制就是对dispatch进行了增强（enhance）。</p>
+<h3 id="middleware源码分析"><a href="#middleware源码分析" class="headerlink" title="middleware源码分析"></a>middleware源码分析</h3><p>一般我们在业务中会这样添加中间件：<br><figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; applyMiddleware, createStore &#125; <span class="keyword">from</span> <span class="string">'redux'</span>;</span><br><span class="line"><span class="keyword">import</span> thunk <span class="keyword">from</span> <span class="string">"redux-thunk"</span>; </span><br><span class="line"><span class="keyword">import</span> createLogger <span class="keyword">from</span> <span class="string">'redux-logger'</span>;</span><br><span class="line"><span class="keyword">const</span> logger = createLogger();</span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> middleware = [thunk, logger];</span><br><span class="line"><span class="keyword">const</span> store = createStore(rootReducers, applyMiddleware(...middleware));</span><br></pre></td></tr></table></figure></p>
+<p>重点关注createStore和applyMiddleware这两个方法。</p>
+<h4 id="createStore"><a href="#createStore" class="headerlink" title="createStore"></a>createStore</h4><figure class="highlight qml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">createStore</span>(<span class="params">reducer, preloadedState, enhancer</span>) </span>&#123;</span><br><span class="line">  ...</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">if</span> (<span class="keyword">typeof</span> enhancer !== <span class="string">'undefined'</span>) &#123;</span><br><span class="line">    <span class="keyword">if</span> (<span class="keyword">typeof</span> enhancer !== <span class="string">'function'</span>) &#123;</span><br><span class="line">      <span class="keyword">throw</span> <span class="keyword">new</span> <span class="built_in">Error</span>(<span class="string">'Expected the enhancer to be a function.'</span>)</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">return</span> enhancer(createStore)(reducer, preloadedState)</span><br><span class="line">  &#125;</span><br><span class="line">    </span><br><span class="line">  ...</span><br><span class="line">    </span><br><span class="line">  <span class="comment">// When a store is created, an "INIT" action is dispatched so that every</span></span><br><span class="line">  <span class="comment">// reducer returns their initial state. This effectively populates</span></span><br><span class="line">  <span class="comment">// the initial state tree.</span></span><br><span class="line">  dispatch(&#123; <span class="attribute">type</span>: ActionTypes.INIT &#125;)</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> &#123;</span><br><span class="line">    dispatch,</span><br><span class="line">    subscribe,</span><br><span class="line">    getState,</span><br><span class="line">    replaceReducer,</span><br><span class="line">    [$$observable]: observable</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>createStore的代码比较长，节选了一部分。这里的enhancer参数即为applyMiddleware()返回的组合后的中间件。</p>
+<h4 id="applyMiddleware"><a href="#applyMiddleware" class="headerlink" title="applyMiddleware"></a>applyMiddleware</h4><figure class="highlight actionscript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">applyMiddleware</span><span class="params">(<span class="rest_arg">...middlewares</span>)</span> </span>&#123;</span><br><span class="line">  <span class="keyword">return</span> createStore =&gt; (...args) =&gt; &#123;</span><br><span class="line">    <span class="keyword">const</span> store = createStore(...args)</span><br><span class="line">    let dispatch = () =&gt; &#123;</span><br><span class="line">      <span class="keyword">throw</span> <span class="keyword">new</span> Error(</span><br><span class="line">        `Dispatching <span class="keyword">while</span> constructing your middleware <span class="keyword">is</span> not allowed. ` +</span><br><span class="line">          `Other middleware would not be applied to <span class="keyword">this</span> dispatch.`</span><br><span class="line">      )</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 生成初始的middlewareAPI（store的基本方法）</span></span><br><span class="line">    <span class="keyword">const</span> middlewareAPI = &#123;</span><br><span class="line">      getState: store.getState,</span><br><span class="line">      dispatch: (...args) =&gt; dispatch(...args)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 将middlewareAPI传递给中间件并执行</span></span><br><span class="line">    <span class="keyword">const</span> chain = middlewares.map(middleware =&gt; middleware(middlewareAPI))</span><br><span class="line">    <span class="comment">// 组合这些中间件，传入初始dispatch生成增强后的dispatch方法，并改变初始dispatch指向</span></span><br><span class="line">    dispatch = compose(...chain)(store.dispatch)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> &#123;</span><br><span class="line">      ...store,</span><br><span class="line">      dispatch</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>applyMiddleware的代码更加简单，只有短短十几行代码。不难看出applyMiddleware的核心就在于组合（compose）中间件。</p>
+<p>在分析applyMiddleware之前，我们有必要先看一下一个标准的middleware的写法：<br><figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> standardMidddleware = <span class="function"><span class="params">store</span> =&gt;</span> next =&gt; <span class="function"><span class="params">action</span> =&gt;</span> next(action)</span><br></pre></td></tr></table></figure></p>
+<p>上面这个方法接受一个store参数，也就是上面applyMiddleware源码里的middlewareAPI对象。standardMidddleware方法返回的函数接受一个next参数，这个next也是一个函数，当next执行的时候即表示当前middleware的工作结束，将action交给下一个中间件执行。</p>
+<p>我们继续梳理applyMiddleware的流程，可以将其分成下面几个步骤：</p>
+<p><strong>1、执行各个middleware，生成一个chain数组</strong></p>
+<p>将store的基本方法作为一个对象参数，传递给中间件并依次执行，合并到一个chain数组中。此时chain数组结构如下：<br><figure class="highlight r"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">[</span><br><span class="line">    <span class="keyword">next</span> =&gt; action =&gt; &#123; doSomething1(); <span class="keyword">return</span> <span class="keyword">next</span>(action) &#125;,</span><br><span class="line">    <span class="keyword">next</span> =&gt; action =&gt; &#123; doSomething2(); <span class="keyword">return</span> <span class="keyword">next</span>(action) &#125;,</span><br><span class="line">    <span class="keyword">next</span> =&gt; action =&gt; &#123; doSomething3(); <span class="keyword">return</span> <span class="keyword">next</span>(action) &#125;,</span><br><span class="line">    <span class="keyword">...</span></span><br><span class="line">]</span><br></pre></td></tr></table></figure></p>
+<p><strong>2、利用compose方法将chain数组中的中间件进行组合</strong></p>
+<p>compose方法定义如下：<br><figure class="highlight actionscript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">compose</span><span class="params">(<span class="rest_arg">...funcs</span>)</span> </span>&#123;</span><br><span class="line">  <span class="keyword">if</span> (funcs.length === <span class="number">0</span>) &#123;</span><br><span class="line">    <span class="keyword">return</span> arg =&gt; arg</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (funcs.length === <span class="number">1</span>) &#123;</span><br><span class="line">    <span class="keyword">return</span> funcs[<span class="number">0</span>]</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> funcs.reduce((a, b) =&gt; (...args) =&gt; a(b(...args)), v=&gt;v)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>middleware的设计采用了柯里化的方式，这样就便于compose，从而可以动态生成next方法。applyMiddleware方法中最关键的代码也就是下面这行代码：<br><figure class="highlight lisp"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dispatch = compose(...chain)(<span class="name">store</span>.dispatch)</span><br></pre></td></tr></table></figure></p>
+<p>等价于<br><figure class="highlight armasm"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="symbol">dispatch</span> = <span class="built_in">f1</span>(<span class="built_in">f2</span>(<span class="built_in">f3</span>(store.dispatch))))</span><br></pre></td></tr></table></figure></p>
+<p>compose就是这样将middleware一层层嵌套包裹到原始的dispatch<br>方法上，得到一个增强后的dispatch方法。</p>
+<h3 id="Redux中间件实践"><a href="#Redux中间件实践" class="headerlink" title="Redux中间件实践"></a>Redux中间件实践</h3><p>举一个平常开发中可能遇到的一个例子：</p>
+<p>我们在发起网络请求之前会让页面上出现loading的动画，完成请求之后再让loading消失。</p>
+<p>在不使用Redux时我们很容易办到：<br><figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">this</span>.setState(&#123; loading: <span class="literal">true</span> &#125;);</span><br><span class="line"><span class="keyword">this</span>.fetchData().then(</span><br><span class="line">    resp =&gt; &#123;</span><br><span class="line">        ...</span><br><span class="line">        <span class="keyword">this</span>.setState(&#123; loading: <span class="literal">false</span> &#125;);</span><br><span class="line">    &#125;</span><br><span class="line">);</span><br></pre></td></tr></table></figure></p>
+<p>但当我们使用redux之后，我们会在异步操作中发起网络请求，并将数据存储到Redux store中。由于网络请求被包裹在Redux的异步操作中，我们似乎就没法获取弹出loading的时机了。</p>
+<p>这时，Redux的中间件就派上用场了。</p>
+<p>对于Redux的同步操作，我们只需要dispatch一种Action即可；但是对于异步操作，需要处理三种Action：</p>
+<ul>
+<li>操作发起时的 Action</li>
+<li>操作成功时的 Action</li>
+<li>操作失败时的 Action</li>
+</ul>
+<p>对于发送网络请求的异步操作，对应的三种Action类型可以定义如下：<br><figure class="highlight dts"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">const actionTypes = &#123;</span><br><span class="line"><span class="symbol">  FETCH_xxx_REQUEST:</span> <span class="string">"FETCH_xxx_REQUEST"</span>,</span><br><span class="line"><span class="symbol">  FETCH_xxx_SUCCESS:</span> <span class="string">"FETCH_xxx_SUCCESS"</span>,</span><br><span class="line"><span class="symbol">  FETCH_xxx_FAILURE:</span> <span class="string">"FETCH_xxx_FAILURE"</span></span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure></p>
+<p>Reducer方法即为<br><figure class="highlight pf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">const Reducer = (<span class="keyword">state</span> = initialState, action) =&gt; &#123;</span><br><span class="line">  switch(action.type) &#123;</span><br><span class="line">    case types.FETCH_xxx_REQUEST:</span><br><span class="line">      return &#123; ...<span class="keyword">state</span>, isFetching: true &#125;;</span><br><span class="line">    case types.FETCH_xxx_SUCCESS:</span><br><span class="line">      return &#123;</span><br><span class="line">        ...<span class="keyword">state</span>,</span><br><span class="line">        isFetching: false,</span><br><span class="line">        resp: action.payload</span><br><span class="line">      &#125;;</span><br><span class="line">    case types.FETCH_xxx_FAILURE:</span><br><span class="line">      return &#123; </span><br><span class="line">        ...<span class="keyword">state</span>, </span><br><span class="line">        isFetching: false, </span><br><span class="line">        error: action.error </span><br><span class="line">      &#125;;</span><br><span class="line">    <span class="keyword">default</span>:</span><br><span class="line">      return <span class="keyword">state</span>;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>可以发现这里使用State的属性isFetching来标识是否在抓取数据。</p>
+<p>创建对应的ActionCreator方法返回值需要包含上述的三种action类型：<br><figure class="highlight coffeescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">fetchxxx: <span class="function"><span class="params">()</span> =&gt;</span> (dispatch) =&gt; &#123;</span><br><span class="line">    const endpoint = urlMap.fetchxxx;</span><br><span class="line">    <span class="keyword">return</span> dispatch(&#123;</span><br><span class="line">      [FETCH_DATA]: &#123;</span><br><span class="line">        types: [</span><br><span class="line">          types.FETCH_xxx_REQUEST,</span><br><span class="line">          types.FETCH_xxx_SUCCESS,</span><br><span class="line">          types.FETCH_xxx_FAILURE</span><br><span class="line">        ],</span><br><span class="line">        endpoint,</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;)</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure></p>
+<p>可以发现返回的action对象跟常规的action<br>有所不同，并且所有内容都包裹在[FETCH_DATA]对象里面，而这个FETCH_DATA字段也正是用以在中间件中与其他普通action相区分。</p>
+<p>这样，我们需要的中间件也就呼之欲出了：<br><figure class="highlight typescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> apiMiddleware = <span class="function"><span class="params">store</span> =&gt;</span> next =&gt; <span class="function"><span class="params">action</span> =&gt;</span> &#123;</span><br><span class="line">  <span class="keyword">const</span> callAPI = action[FETCH_DATA]</span><br><span class="line">  <span class="comment">// 如果action不包含FETCH_DATA字段，直接交给下一个中间件执行。</span></span><br><span class="line">  <span class="keyword">if</span> (<span class="keyword">typeof</span> callAPI === <span class="string">'undefined'</span>) &#123;</span><br><span class="line">    <span class="keyword">return</span> next(action)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">let</span> &#123; endpoint &#125; = callAPI</span><br><span class="line">  <span class="keyword">const</span> &#123; types, body &#125; = callAPI</span><br><span class="line"></span><br><span class="line">  <span class="keyword">if</span> (<span class="keyword">typeof</span> endpoint !== <span class="string">'string'</span>) &#123;</span><br><span class="line">    <span class="keyword">throw</span> <span class="keyword">new</span> <span class="built_in">Error</span>(<span class="string">'Specify a string endpoint URL.'</span>)</span><br><span class="line">  &#125;</span><br><span class="line">  </span><br><span class="line">  <span class="keyword">if</span> (!<span class="built_in">Array</span>.isArray(types) || types.length !== <span class="number">3</span>) &#123;</span><br><span class="line">    <span class="keyword">throw</span> <span class="keyword">new</span> <span class="built_in">Error</span>(<span class="string">'Expected an array of three action types.'</span>)</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">if</span> (!types.every(<span class="function"><span class="params">type</span> =&gt;</span> <span class="keyword">typeof</span> <span class="keyword">type</span> === <span class="string">'string'</span>)) &#123;</span><br><span class="line">    <span class="keyword">throw</span> <span class="keyword">new</span> <span class="built_in">Error</span>(<span class="string">'Expected action types to be strings.'</span>)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">const</span> actionWith = <span class="function"><span class="params">data</span> =&gt;</span> &#123;</span><br><span class="line">    <span class="keyword">const</span> finalAction = &#123;...action, ...data&#125;</span><br><span class="line">    <span class="keyword">delete</span> finalAction[FETCH_DATA]</span><br><span class="line">    <span class="keyword">return</span> finalAction</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">const</span> [ requestType, successType, failureType ] = types</span><br><span class="line">  <span class="comment">// 发送请求之前，发出类型为‘请求中’的action</span></span><br><span class="line">  next(actionWith(&#123; <span class="keyword">type</span>: requestType &#125;))</span><br><span class="line"></span><br><span class="line">  <span class="keyword">return</span> doRequest(endpoint, body).then(</span><br><span class="line">    <span class="comment">// 请求成功之后，发出类型为‘请求成功’的action</span></span><br><span class="line">    response =&gt; next(actionWith(&#123;</span><br><span class="line">      payload: response,</span><br><span class="line">      <span class="keyword">type</span>: successType</span><br><span class="line">    &#125;)),</span><br><span class="line">    <span class="comment">// 请求失败之后，发出类型为‘请求失败’的action</span></span><br><span class="line">    error =&gt; next(actionWith(&#123;</span><br><span class="line">      <span class="keyword">type</span>: failureType,</span><br><span class="line">      error: error.message || <span class="string">'Something bad happened'</span></span><br><span class="line">    &#125;))</span><br><span class="line">  )</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>上述用于处理网络请求的middleware，可以分成以下几个步骤：</p>
+<p>1、判断action是否包含FETCH_DATA字段，如果不包含FETCH_DATA则直接交给下一个中间件执行；</p>
+<p>2、在发送请求之前，dispatch类型为‘请求中’的action；</p>
+<p>3、请求返回时，如果请求成功，dispatch类型为‘请求成功’的action；否则dispatch类型为‘请求失败’的action。</p>
+<p>在上述过程中，发出任一类型的action之后，我们就能获取isFetching状态变化了。</p>
+<p>到此，我们需要的中间件就完成了。</p>
+<p>（完）</p>
+<h4 id="Reference"><a href="#Reference" class="headerlink" title="Reference"></a>Reference</h4><ul>
+<li><a href="http://www.ruanyifeng.com/blog/2016/09/redux_tutorial_part_two_async_operations.html" target="_blank" rel="noopener">Redux 入门教程（二）：中间件与异步操作</a></li>
+<li><a href="https://srtian96.gitee.io/blog/2018/06/15/%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3Redux%E4%B8%AD%E9%97%B4%E4%BB%B6/" target="_blank" rel="noopener">深入理解 Redux 中间件</a></li>
+</ul>
+
+
+                <hr>
+
+                
+
+                <ul class="pager">
+                    
+                    
+                        <li class="next">
+                            <a href="/blog/2018/12/25/深入Babel，这一篇就够了/" data-toggle="tooltip" data-placement="top" title="深入Babel，这一篇就够了">Next Post &rarr;</a>
+                        </li>
+                    
+                </ul>
+
+                
+
+                
+
+            </div>
+    <!-- Side Catalog Container -->
+        
+            <div class="
+                col-lg-2 col-lg-offset-0
+                visible-lg-block
+                sidebar-container
+                catalog-container">
+                <div class="side-catalog">
+                    <hr class="hidden-sm hidden-xs">
+                    <h5>
+                        <a class="catalog-toggle" href="#">CATALOG</a>
+                    </h5>
+                    <ul class="catalog-body"></ul>
+                </div>
+            </div>
+        
+
+    <!-- Sidebar Container -->
+
+            <div class="
+                col-lg-8 col-lg-offset-2
+                col-md-10 col-md-offset-1
+                sidebar-container">
+
+                <!-- Featured Tags -->
+                
+
+                <!-- Friends Blog -->
+                
+            </div>
+
+        </div>
+    </div>
+</article>
+
+
+
+
+
+
+
+<!-- async load function -->
+<script>
+    function async(u, c) {
+      var d = document, t = 'script',
+          o = d.createElement(t),
+          s = d.getElementsByTagName(t)[0];
+      o.src = u;
+      if (c) { o.addEventListener('load', function (e) { c(null, e); }, false); }
+      s.parentNode.insertBefore(o, s);
+    }
+</script>
+<!-- anchor-js, Doc:http://bryanbraun.github.io/anchorjs/ -->
+<script>
+    async("https://cdn.bootcss.com/anchor-js/1.1.1/anchor.min.js",function(){
+        anchors.options = {
+          visible: 'always',
+          placement: 'right',
+          icon: '#'
+        };
+        anchors.add().remove('.intro-header h1').remove('.subheading').remove('.sidebar-container h5');
+    })
+</script>
+<style>
+    /* place left on bigger screen */
+    @media all and (min-width: 800px) {
+        .anchorjs-link{
+            position: absolute;
+            left: -0.75em;
+            font-size: 1.1em;
+            margin-top : -0.1em;
+        }
+    }
+</style>
+
+
+
+    <!-- Footer -->
+    <!-- Footer -->
+<footer>
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                <ul class="list-inline text-center">
+                
+                
+                
+
+                
+
+                
+
+                
+                    <li>
+                        <a target="_blank"  href="https://github.com/hudingyu">
+                            <span class="fa-stack fa-lg">
+                                <i class="fa fa-circle fa-stack-2x"></i>
+                                <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                            </span>
+                        </a>
+                    </li>
+                
+
+                
+
+                </ul>
+                <p class="copyright text-muted">
+                    Copyright &copy; Turling Blog 2019 
+                    <!-- <br> -->
+                    <!-- Theme by <a href="http://huangxuan.me">Hux</a> 
+                    <span style="display: inline-block; margin: 0 5px;">
+                        <i class="fa fa-heart"></i>
+                    </span> 
+                    Ported by <a href="http://blog.kaijun.rocks">Kaijun</a> |  -->
+                    <!-- <iframe
+                        style="margin-left: 2px; margin-bottom:-5px;"
+                        frameborder="0" scrolling="0" width="91px" height="20px"
+                        src="https://ghbtns.com/github-btn.html?user=kaijun&repo=hexo-theme-huxblog&type=star&count=true" >
+                    </iframe> -->
+                </p>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<!-- jQuery -->
+<script src="/blog/js/jquery.min.js"></script>
+
+<!-- Bootstrap Core JavaScript -->
+<script src="/blog/js/bootstrap.min.js"></script>
+
+<!-- Custom Theme JavaScript -->
+<script src="/blog/js/hux-blog.min.js"></script>
+
+
+<!-- async load function -->
+<script>
+    function async(u, c) {
+      var d = document, t = 'script',
+          o = d.createElement(t),
+          s = d.getElementsByTagName(t)[0];
+      o.src = u;
+      if (c) { o.addEventListener('load', function (e) { c(null, e); }, false); }
+      s.parentNode.insertBefore(o, s);
+    }
+</script>
+
+<!-- 
+     Because of the native support for backtick-style fenced code blocks 
+     right within the Markdown is landed in Github Pages, 
+     From V1.6, There is no need for Highlight.js, 
+     so Huxblog drops it officially.
+
+     - https://github.com/blog/2100-github-pages-now-faster-and-simpler-with-jekyll-3-0  
+     - https://help.github.com/articles/creating-and-highlighting-code-blocks/    
+-->
+<!--
+    <script>
+        async("http://cdn.bootcss.com/highlight.js/8.6/highlight.min.js", function(){
+            hljs.initHighlightingOnLoad();
+        })
+    </script>
+    <link href="http://cdn.bootcss.com/highlight.js/8.6/styles/github.min.css" rel="stylesheet">
+-->
+
+
+<!-- jquery.tagcloud.js -->
+<script>
+    // only load tagcloud.js in tag.html
+    if($('#tag_cloud').length !== 0){
+        async("https://hudingyu.github.io/blog/js/jquery.tagcloud.js",function(){
+            $.fn.tagcloud.defaults = {
+                //size: {start: 1, end: 1, unit: 'em'},
+                color: {start: '#bbbbee', end: '#0085a1'},
+            };
+            $('#tag_cloud a').tagcloud();
+        })
+    }
+</script>
+
+<!--fastClick.js -->
+<script>
+    async("https://cdn.bootcss.com/fastclick/1.0.6/fastclick.min.js", function(){
+        var $nav = document.querySelector("nav");
+        if($nav) FastClick.attach($nav);
+    })
+</script>
+
+
+<!-- Google Analytics -->
+
+
+
+
+<!-- Baidu Tongji -->
+
+
+<!-- Side Catalog -->
+
+<script type="text/javascript">
+    function generateCatalog (selector) {
+        var P = $('div.post-container'),a,n,t,l,i,c;
+        a = P.find('h1,h2,h3,h4,h5,h6');
+        a.each(function () {
+            n = $(this).prop('tagName').toLowerCase();
+            i = "#"+$(this).prop('id');
+            t = $(this).text();
+            c = $('<a href="'+i+'" rel="nofollow">'+t+'</a>');
+            l = $('<li class="'+n+'_nav"></li>').append(c);
+            $(selector).append(l);
+        });
+        return true;    
+    }
+
+    generateCatalog(".catalog-body");
+
+    // toggle side catalog
+    $(".catalog-toggle").click((function(e){
+        e.preventDefault();
+        $('.side-catalog').toggleClass("fold")
+    }))
+
+    /*
+     * Doc: https://github.com/davist11/jQuery-One-Page-Nav
+     * Fork by Hux to support padding
+     */
+    async("/blog/js/jquery.nav.js", function () {
+        $('.catalog-body').onePageNav({
+            currentClass: "active",
+            changeHash: !1,
+            easing: "swing",
+            filter: "",
+            scrollSpeed: 700,
+            scrollOffset: 0,
+            scrollThreshold: .2,
+            begin: null,
+            end: null,
+            scrollChange: null,
+            padding: 80
+        });
+    });
+</script>
+
+
+
+
+
+<!-- Image to hack wechat -->
+<img src="https://hudingyu.github.io/blog/img/icon_wechat.png" width="0" height="0" />
+<!-- Migrate from head to bottom, no longer block render and still work -->
+
+</body>
+
+</html>
