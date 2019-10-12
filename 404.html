@@ -47,9 +47,13 @@
         <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
         <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
     <![endif]-->
-
+    
     <!-- ga & ba script hoook -->
     <script></script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.css">
+    <script src="https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js"></script>
+    <script src="https://cdn.bootcss.com/blueimp-md5/2.11.0/js/md5.min.js"></script>
 </head>
 
 
@@ -263,6 +267,20 @@
         })
     }
 </script>
+
+<script type="text/javascript">
+    const gitalk = new Gitalk({
+        clientID: 'd526317e8c13bd9e1344',
+        clientSecret: '3f2e043a8a04f4babf9e5d0804fd8e14f1b8d75d',
+        repo: 'blog-comments',
+        owner: 'hudingyu',
+        admin: ['hudingyu'],
+        id: md5(location.pathname),      // Ensure uniqueness and length less than 50
+        distractionFreeMode: false  // Facebook-like distraction free mode
+    })
+
+    gitalk.render('gitalk-container')
+  </script>
 
 <!--fastClick.js -->
 <script>
