@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Head tag -->
+<head><meta name="generator" content="Hexo 3.9.0">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="google-site-verification" content="xBT4GhYoi5qRD5tr338pgPM5OWHHIDR6mNg1a3euekI">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content>
+    <meta name="keyword" content>
+    <link rel="shortcut icon" href="/img/favicon.ico">
+
+    <title>
+        
+          深入Babel，这一篇就够了 - Turling的博客 | Turling Blog
+        
+    </title>
+
+    <link rel="canonical" href="https://hudingyu.github.io/2018/12/25/understand-babel/">
+
+    <!-- Bootstrap Core CSS -->
+    <link rel="stylesheet" href="/css/bootstrap.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/hux-blog.min.css">
+
+    <!-- Pygments Highlight CSS -->
+    <link rel="stylesheet" href="/css/highlight.css">
+
+    <!-- Custom Fonts -->
+    <!-- <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css" rel="stylesheet" type="text/css"> -->
+    <!-- Hux change font-awesome CDN to qiniu -->
+    <link href="https://cdn.staticfile.org/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+
+
+    <!-- Hux Delete, sad but pending in China
+    <link href='http://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+    <link href='http://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/
+    css'>
+    -->
+
+
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+        <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+        <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+    
+    <!-- ga & ba script hoook -->
+    <script></script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.css">
+    <script src="https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js"></script>
+    <script src="https://cdn.bootcss.com/blueimp-md5/2.11.0/js/md5.min.js"></script>
+</head>
+
+
+<!-- hack iOS CSS :active style -->
+<body ontouchstart="">
+
+    <!-- Navigation -->
+<nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+    <div class="container-fluid">
+        <!-- Brand and toggle get grouped for better mobile display -->
+        <div class="navbar-header page-scroll">
+            <button type="button" class="navbar-toggle">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="/">Turling Blog</a>
+        </div>
+
+        <!-- Collect the nav links, forms, and other content for toggling -->
+        <!-- Known Issue, found by Hux:
+            <nav>'s height woule be hold on by its content.
+            so, when navbar scale out, the <nav> will cover tags.
+            also mask any touch event of tags, unfortunately.
+        -->
+        <div id="huxblog_navbar">
+            <div class="navbar-collapse">
+                <ul class="nav navbar-nav navbar-right">
+                    <li>
+                        <a href="/">Home</a>
+                    </li>
+
+                    
+
+                        
+                    
+
+                        
+                        <li>
+                            <a href="/about/">About</a>
+                        </li>
+                        
+                    
+
+                        
+                        <li>
+                            <a href="/archives/">Archives</a>
+                        </li>
+                        
+                    
+                    
+                </ul>
+            </div>
+        </div>
+        <!-- /.navbar-collapse -->
+    </div>
+    <!-- /.container -->
+</nav>
+<script>
+    // Drop Bootstarp low-performance Navbar
+    // Use customize navbar with high-quality material design animation
+    // in high-perf jank-free CSS3 implementation
+    var $body   = document.body;
+    var $toggle = document.querySelector('.navbar-toggle');
+    var $navbar = document.querySelector('#huxblog_navbar');
+    var $collapse = document.querySelector('.navbar-collapse');
+
+    $toggle.addEventListener('click', handleMagic)
+    function handleMagic(e){
+        if ($navbar.className.indexOf('in') > 0) {
+        // CLOSE
+            $navbar.className = " ";
+            // wait until animation end.
+            setTimeout(function(){
+                // prevent frequently toggle
+                if($navbar.className.indexOf('in') < 0) {
+                    $collapse.style.height = "0px"
+                }
+            },400)
+        }else{
+        // OPEN
+            $collapse.style.height = "auto"
+            $navbar.className += " in";
+        }
+    }
+</script>
+
+
+    <!-- Main Content -->
+    
+<!-- Image to hack wechat -->
+<!-- <img src="https://hudingyu.github.io/img/icon_wechat.png" width="0" height="0"> -->
+<!-- <img src="{{ site.baseurl }}/{% if page.header-img %}{{ page.header-img }}{% else %}{{ site.header-img }}{% endif %}" width="0" height="0"> -->
+
+<!-- Post Header -->
+<style type="text/css">
+    header.intro-header{
+        background-image: url('devil-may-cry.jpg')
+    }
+</style>
+<header class="intro-header" >
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                <div class="post-heading">
+                    <div class="tags">
+                        
+                          <a class="tag" href="/tags/#Babel" title="Babel">Babel</a>
+                        
+                    </div>
+                    <h1>深入Babel，这一篇就够了</h1>
+                    <h2 class="subheading"></h2>
+                    <span class="meta">
+                        Posted by Turling on
+                        2018-12-25
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- Post Content -->
+<article>
+    <div class="container">
+        <div class="row">
+
+    <!-- Post Container -->
+            <div class="
+                col-lg-8 col-lg-offset-2
+                col-md-10 col-md-offset-1
+                post-container">
+
+                <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>既然标题说了是深入Babel，那我们就不说Babel各种用法了，什么babel-core，babel-runtime，babel-loader……如果你想了解这一部分内容，这类文章很多，推荐最近看到的一篇：<a href="https://juejin.im/post/5c19c5e0e51d4502a232c1c6" target="_blank" rel="noopener">一口(很长的)气了解 babel</a>，可以说是相当详实完备了。</p>
+<p>言归正传，这篇文章主要是去了解一下Babel是怎么工作的，Babel插件是怎么工作的，以及怎么去写Babel插件，相信你看完之后一定会有一些收获。</p>
+<p>那我们开始吧！</p>
+<h3 id="抽象语法树（AST）"><a href="#抽象语法树（AST）" class="headerlink" title="抽象语法树（AST）"></a>抽象语法树（AST）</h3><p>要了解Babel的工作原理，那首先需要了解抽象语法树，因为Babel插件就是作用于抽象语法树。首先我们编写的代码在编译阶段解析成抽象语法树（AST），然后经过一系列的遍历和转换，然后再将转换后的抽象语法树生成为常规的js代码。下面这幅图(<a href="https://yq.aliyun.com/articles/62671" target="_blank" rel="noopener">来源</a>)可以表示Babel的工作流程：<br><img src="babel.png" alt="babel"><br>我们先说AST，代码解析成AST的目的就是方便计算机更好地理解我们的代码。这里我们先写一段代码：</p>
+<figure class="highlight ada"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">function</span> <span class="title">add</span>(x, y) &#123;</span><br><span class="line">    <span class="keyword">return</span> <span class="type">x</span> + y;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">add(<span class="number">1</span>, <span class="number">2</span>);</span><br></pre></td></tr></table></figure>
+<p>然后将代码解析成抽象语法树（<a href="https://astexplorer.net/" target="_blank" rel="noopener">在线工具</a>），表示成JSON形式如下：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">  <span class="attr">"type"</span>: <span class="string">"Program"</span>,</span><br><span class="line">  <span class="attr">"start"</span>: <span class="number">0</span>,</span><br><span class="line">  <span class="attr">"end"</span>: <span class="number">52</span>,</span><br><span class="line">  <span class="attr">"body"</span>: [</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="attr">"type"</span>: <span class="string">"FunctionDeclaration"</span>,</span><br><span class="line">      <span class="attr">"start"</span>: <span class="number">0</span>,</span><br><span class="line">      <span class="attr">"end"</span>: <span class="number">40</span>,</span><br><span class="line">      <span class="attr">"id"</span>: &#123;</span><br><span class="line">        <span class="attr">"type"</span>: <span class="string">"Identifier"</span>,</span><br><span class="line">        <span class="attr">"start"</span>: <span class="number">9</span>,</span><br><span class="line">        <span class="attr">"end"</span>: <span class="number">12</span>,</span><br><span class="line">        <span class="attr">"name"</span>: <span class="string">"add"</span></span><br><span class="line">      &#125;,</span><br><span class="line">      <span class="attr">"expression"</span>: <span class="literal">false</span>,</span><br><span class="line">      <span class="attr">"generator"</span>: <span class="literal">false</span>,</span><br><span class="line">      <span class="attr">"params"</span>: [</span><br><span class="line">        &#123;</span><br><span class="line">          <span class="attr">"type"</span>: <span class="string">"Identifier"</span>,</span><br><span class="line">          <span class="attr">"start"</span>: <span class="number">13</span>,</span><br><span class="line">          <span class="attr">"end"</span>: <span class="number">14</span>,</span><br><span class="line">          <span class="attr">"name"</span>: <span class="string">"x"</span></span><br><span class="line">        &#125;,</span><br><span class="line">        &#123;</span><br><span class="line">          <span class="attr">"type"</span>: <span class="string">"Identifier"</span>,</span><br><span class="line">          <span class="attr">"start"</span>: <span class="number">16</span>,</span><br><span class="line">          <span class="attr">"end"</span>: <span class="number">17</span>,</span><br><span class="line">          <span class="attr">"name"</span>: <span class="string">"y"</span></span><br><span class="line">        &#125;</span><br><span class="line">      ],</span><br><span class="line">      <span class="attr">"body"</span>: &#123;</span><br><span class="line">        <span class="attr">"type"</span>: <span class="string">"BlockStatement"</span>,</span><br><span class="line">        <span class="attr">"start"</span>: <span class="number">19</span>,</span><br><span class="line">        <span class="attr">"end"</span>: <span class="number">40</span>,</span><br><span class="line">        <span class="attr">"body"</span>: [</span><br><span class="line">          &#123;</span><br><span class="line">            <span class="attr">"type"</span>: <span class="string">"ReturnStatement"</span>,</span><br><span class="line">            <span class="attr">"start"</span>: <span class="number">25</span>,</span><br><span class="line">            <span class="attr">"end"</span>: <span class="number">38</span>,</span><br><span class="line">            <span class="attr">"argument"</span>: &#123;</span><br><span class="line">              <span class="attr">"type"</span>: <span class="string">"BinaryExpression"</span>,</span><br><span class="line">              <span class="attr">"start"</span>: <span class="number">32</span>,</span><br><span class="line">              <span class="attr">"end"</span>: <span class="number">37</span>,</span><br><span class="line">              <span class="attr">"left"</span>: &#123;</span><br><span class="line">                <span class="attr">"type"</span>: <span class="string">"Identifier"</span>,</span><br><span class="line">                <span class="attr">"start"</span>: <span class="number">32</span>,</span><br><span class="line">                <span class="attr">"end"</span>: <span class="number">33</span>,</span><br><span class="line">                <span class="attr">"name"</span>: <span class="string">"x"</span></span><br><span class="line">              &#125;,</span><br><span class="line">              <span class="attr">"operator"</span>: <span class="string">"+"</span>,</span><br><span class="line">              <span class="attr">"right"</span>: &#123;</span><br><span class="line">                <span class="attr">"type"</span>: <span class="string">"Identifier"</span>,</span><br><span class="line">                <span class="attr">"start"</span>: <span class="number">36</span>,</span><br><span class="line">                <span class="attr">"end"</span>: <span class="number">37</span>,</span><br><span class="line">                <span class="attr">"name"</span>: <span class="string">"y"</span></span><br><span class="line">              &#125;</span><br><span class="line">            &#125;</span><br><span class="line">          &#125;</span><br><span class="line">        ]</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;,</span><br><span class="line">    &#123;</span><br><span class="line">      <span class="attr">"type"</span>: <span class="string">"ExpressionStatement"</span>,</span><br><span class="line">      <span class="attr">"start"</span>: <span class="number">42</span>,</span><br><span class="line">      <span class="attr">"end"</span>: <span class="number">52</span>,</span><br><span class="line">      <span class="attr">"expression"</span>: &#123;</span><br><span class="line">        <span class="attr">"type"</span>: <span class="string">"CallExpression"</span>,</span><br><span class="line">        <span class="attr">"start"</span>: <span class="number">42</span>,</span><br><span class="line">        <span class="attr">"end"</span>: <span class="number">51</span>,</span><br><span class="line">        <span class="attr">"callee"</span>: &#123;</span><br><span class="line">          <span class="attr">"type"</span>: <span class="string">"Identifier"</span>,</span><br><span class="line">          <span class="attr">"start"</span>: <span class="number">42</span>,</span><br><span class="line">          <span class="attr">"end"</span>: <span class="number">45</span>,</span><br><span class="line">          <span class="attr">"name"</span>: <span class="string">"add"</span></span><br><span class="line">        &#125;,</span><br><span class="line">        <span class="attr">"arguments"</span>: [</span><br><span class="line">          &#123;</span><br><span class="line">            <span class="attr">"type"</span>: <span class="string">"Literal"</span>,</span><br><span class="line">            <span class="attr">"start"</span>: <span class="number">46</span>,</span><br><span class="line">            <span class="attr">"end"</span>: <span class="number">47</span>,</span><br><span class="line">            <span class="attr">"value"</span>: <span class="number">1</span>,</span><br><span class="line">            <span class="attr">"raw"</span>: <span class="string">"1"</span></span><br><span class="line">          &#125;,</span><br><span class="line">          &#123;</span><br><span class="line">            <span class="attr">"type"</span>: <span class="string">"Literal"</span>,</span><br><span class="line">            <span class="attr">"start"</span>: <span class="number">49</span>,</span><br><span class="line">            <span class="attr">"end"</span>: <span class="number">50</span>,</span><br><span class="line">            <span class="attr">"value"</span>: <span class="number">2</span>,</span><br><span class="line">            <span class="attr">"raw"</span>: <span class="string">"2"</span></span><br><span class="line">          &#125;</span><br><span class="line">        ]</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  ],</span><br><span class="line">  <span class="attr">"sourceType"</span>: <span class="string">"module"</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里你会发现抽象语法树中不同层级有着相似的结构，比如：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    <span class="attr">"type"</span>: <span class="string">"Program"</span>,</span><br><span class="line">    <span class="attr">"start"</span>: <span class="number">0</span>,</span><br><span class="line">    <span class="attr">"end"</span>: <span class="number">52</span>,</span><br><span class="line">    <span class="attr">"body"</span>: [...]</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight nimrod"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    <span class="string">"type"</span>: <span class="string">"FunctionDeclaration"</span>,</span><br><span class="line">    <span class="string">"start"</span>: <span class="number">0</span>,</span><br><span class="line">    <span class="string">"end"</span>: <span class="number">40</span>,</span><br><span class="line">    <span class="string">"id"</span>: <span class="meta">&#123;...&#125;</span>,</span><br><span class="line">    <span class="string">"body"</span>: <span class="meta">&#123;...&#125;</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    <span class="attr">"type"</span>: <span class="string">"BlockStatement"</span>,</span><br><span class="line">    <span class="attr">"start"</span>: <span class="number">19</span>,</span><br><span class="line">    <span class="attr">"end"</span>: <span class="number">40</span>,</span><br><span class="line">    <span class="attr">"body"</span>: [...]</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>像这样的结构叫做<strong>节点（Node）</strong>。一个AST是由多个或单个这样的节点组成，节点内部可以有多个这样的子节点，构成一颗语法树，这样就可以描述用于静态分析的程序语法。</p>
+<p>节点中的type字段表示节点的类型，比如上述AST中的”Program”、”FunctionDeclaration”、”ExpressionStatement”等等，当然每种节点类型会有一些附加的属性用于进一步描述该节点类型。</p>
+<h3 id="Babel的工作流程"><a href="#Babel的工作流程" class="headerlink" title="Babel的工作流程"></a>Babel的工作流程</h3><p>上面那幅图已经描述了Babel的工作流程，下面我们再详细描述一下。Babel 的三个主要处理步骤分别是： 解析（parse），转换（transform），生成（generate）。</p>
+<ul>
+<li><p>解析</p>
+<p>将代码解析成抽象语法树（AST），每个js引擎（比如Chrome浏览器中的V8引擎）都有自己的AST解析器，而Babel是通过<a href="https://github.com/babel/babylon" target="_blank" rel="noopener">Babylon</a>实现的。在解析过程中有两个阶段：<strong>词法分析</strong>和<strong>语法分析</strong>，词法分析阶段把字符串形式的代码转换为<strong>令牌</strong>（tokens）流，令牌类似于AST中节点；而语法分析阶段则会把一个令牌流转换成 AST的形式，同时这个阶段会把令牌中的信息转换成AST的表述结构。</p>
+</li>
+<li><p>转换</p>
+<p>在这个阶段，Babel接受得到AST并通过babel-traverse对其进行深度优先遍历，在此过程中对节点进行添加、更新及移除操作。这部分也是Babel插件介入工作的部分。</p>
+</li>
+<li><p>生成</p>
+<p>将经过转换的AST通过babel-generator再转换成js代码，过程就是深度优先遍历整个AST，然后构建可以表示转换后代码的字符串。</p>
+</li>
+</ul>
+<p>这部分更详细的可以查看<a href="https://github.com/jamiebuilds/babel-handbook/blob/master/translations/zh-Hans/plugin-handbook.md#toc-stages-of-babel" target="_blank" rel="noopener">Babel手册</a>。</p>
+<p>为了了解Babel在遍历时处理AST的具体过程，我们还需要了解下面几个重要知识点。</p>
+<h4 id="Visitor"><a href="#Visitor" class="headerlink" title="Visitor"></a>Visitor</h4><p>当Babel处理一个节点时，是以访问者的形式获取节点信息，并进行相关操作，这种方式是通过一个visitor对象来完成的，在visitor对象中定义了对于各种节点的访问函数，这样就可以针对不同的节点做出不同的处理。我们编写的Babel插件其实也是通过定义一个实例化visitor对象处理一系列的AST节点来完成我们对代码的修改操作。举个栗子：</p>
+<p>我们想要处理代码中用来加载模块的import命令语句</p>
+<figure class="highlight clean"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; Ajax &#125; <span class="keyword">from</span> <span class="string">'../lib/utils'</span>;</span><br></pre></td></tr></table></figure>
+<p>那么我们的Babel插件就需要定义这样的一个visitor对象：</p>
+<figure class="highlight pf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">visitor: &#123;</span><br><span class="line">            Program: &#123;</span><br><span class="line">                enter(path, <span class="keyword">state</span>) &#123;</span><br><span class="line">                    console.<span class="keyword">log</span>('start processing this module...');</span><br><span class="line">                &#125;,</span><br><span class="line">				exit(path, <span class="keyword">state</span>) &#123;</span><br><span class="line">                    console.<span class="keyword">log</span>('end processing this module!');</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;,</span><br><span class="line">    	    ImportDeclaration (path, <span class="keyword">state</span>) &#123;</span><br><span class="line">            	console.<span class="keyword">log</span>('processing ImportDeclaration...');</span><br><span class="line">            	// do something</span><br><span class="line">            &#125;</span><br><span class="line">	&#125;</span><br></pre></td></tr></table></figure>
+<p>当把这个插件用于遍历中时，每当处理到一个import语句，即ImportDeclaration节点时，都会自动调用ImportDeclaration()方法，这个方法中定义了处理import语句的具体操作。ImportDeclaration()都是在进入ImportDeclaration节点时调用的，我们也可以让插件在退出节点时调用方法进行处理。</p>
+<figure class="highlight awk"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">visitor: &#123;</span><br><span class="line">            ImportDeclaration: &#123;</span><br><span class="line">                enter(path, state) &#123;</span><br><span class="line">                    console.log(<span class="string">'start processing ImportDeclaratio...'</span>);</span><br><span class="line">                    <span class="regexp">//</span> <span class="keyword">do</span> something</span><br><span class="line">                &#125;,</span><br><span class="line">		<span class="keyword">exit</span>(path, state) &#123;</span><br><span class="line">                    console.log(<span class="string">'end processing ImportDeclaratio!'</span>);</span><br><span class="line">                    <span class="regexp">//</span> <span class="keyword">do</span> something</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;,</span><br><span class="line">	&#125;</span><br></pre></td></tr></table></figure>
+<p>当进入ImportDeclaration节点时调用enter()方法，退出ImportDeclaration节点时调用exit()方法。上面的Program节点（Program节点可以通俗地解释为一个模块节点）也是一样的道理。值得注意的是，AST的遍历采用深度优先遍历，所以上述import代码块的AST遍历的过程如下：</p>
+<pre><code>─ Program.enter() 
+  ─ ImportDeclaration.enter()
+  ─ ImportDeclaration.exit()
+─ Program.exit() 
+</code></pre><p>所以当创建访问者时你实际上有两次机会来访问一个节点。</p>
+<p>ps: 有关AST中各种节点类型的定义可以查看Babylon手册：<a href="https://github.com/babel/babylon/blob/master/ast/spec.md" target="_blank" rel="noopener">https://github.com/babel/babylon/blob/master/ast/spec.md</a></p>
+<h4 id="Path"><a href="#Path" class="headerlink" title="Path"></a>Path</h4><p>从上面的visitor对象中，可以看到每次访问节点方法时，都会传入一个path参数，这个path参数中包含了节点的信息以及节点和所在的位置，以供对特定节点进行操作。具体来说Path 是表示两个节点之间连接的对象。这个对象不仅包含了当前节点的信息，也有当前节点的父节点的信息，同时也包含了添加、更新、移动和删除节点有关的其他很多方法。具体地，Path对象包含的属性和方法主要如下：</p>
+<pre><code>── 属性      
+  - node   当前节点
+  - parent  父节点
+  - parentPath 父path
+  - scope   作用域
+  - context  上下文
+  - ...
+── 方法
+  - get   当前节点
+  - findParent  向父节点搜寻节点
+  - getSibling 获取兄弟节点
+  - replaceWith  用AST节点替换该节点
+  - replaceWithMultiple 用多个AST节点替换该节点
+  - insertBefore  在节点前插入节点
+  - insertAfter 在节点后插入节点
+  - remove   删除节点
+  - ...
+</code></pre><p>具体的可以查看<a href="https://github.com/babel/babel/tree/master/packages/babel-traverse/src/path" target="_blank" rel="noopener">babel-traverse</a>。</p>
+<p>这里我们继续上面的例子，path参数的node属性包含哪些信息：</p>
+<figure class="highlight pf"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">visitor: &#123;</span><br><span class="line">	ImportDeclaration (path, <span class="keyword">state</span>) &#123; </span><br><span class="line">    	   console.<span class="keyword">log</span>(path.node);</span><br><span class="line">    	   // do something</span><br><span class="line">	&#125;</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure>
+<p>打印结果如下：</p>
+<figure class="highlight less"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="selector-tag">Node</span> &#123;</span><br><span class="line">  <span class="attribute">type</span>: <span class="string">'ImportDeclaration'</span>,</span><br><span class="line">  <span class="attribute">start</span>: <span class="number">5</span>,</span><br><span class="line">  <span class="attribute">end</span>: <span class="number">41</span>,</span><br><span class="line">  <span class="attribute">loc</span>: </span><br><span class="line">   SourceLocation &#123;</span><br><span class="line">     <span class="attribute">start</span>: Position &#123; <span class="attribute">line</span>: <span class="number">2</span>, <span class="attribute">column</span>: <span class="number">4</span> &#125;,</span><br><span class="line">     <span class="attribute">end</span>: Position &#123; <span class="attribute">line</span>: <span class="number">2</span>, <span class="attribute">column</span>: <span class="number">40</span> &#125; &#125;,</span><br><span class="line">  <span class="attribute">specifiers</span>: </span><br><span class="line">   [ Node &#123;</span><br><span class="line">       <span class="attribute">type</span>: <span class="string">'ImportSpecifier'</span>,</span><br><span class="line">       <span class="attribute">start</span>: <span class="number">14</span>,</span><br><span class="line">       <span class="attribute">end</span>: <span class="number">18</span>,</span><br><span class="line">       <span class="attribute">loc</span>: [SourceLocation],</span><br><span class="line">       <span class="attribute">imported</span>: [Node],</span><br><span class="line">       <span class="attribute">local</span>: [Node] &#125; ],</span><br><span class="line">  <span class="attribute">source</span>: </span><br><span class="line">   Node &#123;</span><br><span class="line">     <span class="attribute">type</span>: <span class="string">'StringLiteral'</span>,</span><br><span class="line">     <span class="attribute">start</span>: <span class="number">26</span>,</span><br><span class="line">     <span class="attribute">end</span>: <span class="number">40</span>,</span><br><span class="line">     <span class="attribute">loc</span>: SourceLocation &#123; <span class="attribute">start</span>: [Position], <span class="attribute">end</span>: [Position] &#125;,</span><br><span class="line">     <span class="attribute">extra</span>: &#123; <span class="attribute">rawValue</span>: <span class="string">'../lib/utils'</span>, <span class="attribute">raw</span>: <span class="string">'\'</span>../lib/utils\<span class="string">''</span> &#125;,</span><br><span class="line">     <span class="attribute">value</span>: <span class="string">'../lib/utils'</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>可以发现除了type、start、end、loc这些常规字段，ImportDeclaration节点还有specifiers和source这两个特殊字段，specifiers表示import导入的变量组成的节点数组，source表示导出模块的来源节点。这里再说一下specifier中的imported和local字段，imported表示从导出模块导出的变量，local表示导入后当前模块的变量，还是有点费解，我们把import命令语句修改一下：</p>
+<figure class="highlight clean"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; Ajax <span class="keyword">as</span> ajax &#125; <span class="keyword">from</span> <span class="string">'../lib/utils'</span>;</span><br></pre></td></tr></table></figure>
+<p>然后继续打印specifiers第一个元素的imported和local字段：</p>
+<figure class="highlight less"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="selector-tag">Node</span> &#123;</span><br><span class="line">  <span class="attribute">type</span>: <span class="string">'Identifier'</span>,</span><br><span class="line">  <span class="attribute">start</span>: <span class="number">22</span>,</span><br><span class="line">  <span class="attribute">end</span>: <span class="number">26</span>,</span><br><span class="line">  <span class="attribute">loc</span>: </span><br><span class="line">   SourceLocation &#123;</span><br><span class="line">     <span class="attribute">start</span>: Position &#123; <span class="attribute">line</span>: <span class="number">2</span>, <span class="attribute">column</span>: <span class="number">21</span> &#125;,</span><br><span class="line">     <span class="attribute">end</span>: Position &#123; <span class="attribute">line</span>: <span class="number">2</span>, <span class="attribute">column</span>: <span class="number">25</span> &#125;,</span><br><span class="line">     <span class="attribute">identifierName</span>: <span class="string">'ajax'</span> &#125;,</span><br><span class="line">  <span class="attribute">name</span>: <span class="string">'ajax'</span> &#125;</span><br><span class="line"><span class="selector-tag">Node</span> &#123;</span><br><span class="line">  <span class="attribute">type</span>: <span class="string">'Identifier'</span>,</span><br><span class="line">  <span class="attribute">start</span>: <span class="number">14</span>,</span><br><span class="line">  <span class="attribute">end</span>: <span class="number">18</span>,</span><br><span class="line">  <span class="attribute">loc</span>: </span><br><span class="line">   SourceLocation &#123;</span><br><span class="line">     <span class="attribute">start</span>: Position &#123; <span class="attribute">line</span>: <span class="number">2</span>, <span class="attribute">column</span>: <span class="number">13</span> &#125;,</span><br><span class="line">     <span class="attribute">end</span>: Position &#123; <span class="attribute">line</span>: <span class="number">2</span>, <span class="attribute">column</span>: <span class="number">17</span> &#125;,</span><br><span class="line">     <span class="attribute">identifierName</span>: <span class="string">'Ajax'</span> &#125;,</span><br><span class="line">  <span class="attribute">name</span>: <span class="string">'Ajax'</span> &#125;</span><br></pre></td></tr></table></figure>
+<p>这样就很明显了。如果不使用as关键字，那么imported和local就是表示同一个变量的节点了。</p>
+<h4 id="State"><a href="#State" class="headerlink" title="State"></a>State</h4><p>State是visitor对象中每次访问节点方法时传入的第二个参数。如果看Babel手册里的解释，可能还是有点困惑，简单来说，state就是一系列状态的集合，包含诸如当前plugin的信息、plugin传入配置参数信息，甚至当前节点的path信息也能获取到，当然也可以把babel插件处理过程中的自定义状态存储到state对象中。</p>
+<h4 id="Scopes（作用域）"><a href="#Scopes（作用域）" class="headerlink" title="Scopes（作用域）"></a>Scopes（作用域）</h4><p>这里的作用域其实跟js说的作用域是一个道理，也就是说babel在处理AST时也需要考虑作用域的问题，比如函数内外的同名变量需要区分开来，这里直接拿Babel手册里的一个例子解释一下。考虑下列代码：</p>
+<figure class="highlight ada"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">function</span> <span class="title">square</span>(n) &#123;</span><br><span class="line">  <span class="keyword">return</span> <span class="type">n</span> * n;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>我们来写一个把 n 重命名为 x 的visitor。</p>
+<figure class="highlight xquery"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">visitor: &#123;</span><br><span class="line">	    FunctionDeclaration<span class="built_in">(path</span>) &#123;</span><br><span class="line">                const param =<span class="built_in"> path</span>.<span class="type">node</span>.params[<span class="number">0</span>];</span><br><span class="line">                paramName = param<span class="built_in">.name</span>;</span><br><span class="line">                param<span class="built_in">.name</span> = <span class="string">"x"</span>;</span><br><span class="line">             &#125;,</span><br><span class="line">            </span><br><span class="line">            Identifier<span class="built_in">(path</span>) &#123;</span><br><span class="line">                <span class="keyword">if</span> <span class="built_in">(path</span>.<span class="type">node</span><span class="built_in">.name</span> === paramName) &#123;</span><br><span class="line">                 <span class="built_in"> path</span>.<span class="type">node</span><span class="built_in">.name</span> = <span class="string">"x"</span>;</span><br><span class="line">                &#125;</span><br><span class="line">             &#125;</span><br><span class="line">	&#125;</span><br></pre></td></tr></table></figure>
+<p>对上面的例子代码这段访问者代码也许能工作，但它很容易被打破：</p>
+<figure class="highlight actionscript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">square</span><span class="params">(n)</span> </span>&#123;</span><br><span class="line">  <span class="keyword">return</span> n * n;</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">var</span> n = <span class="number">1</span>;</span><br></pre></td></tr></table></figure>
+<p>上面的visitor会把函数square外的n变量替换成x，这显然不是我们期望的。更好的处理方式是使用递归，把一个访问者放进另外一个访问者里面。</p>
+<figure class="highlight xquery"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">visitor: &#123;</span><br><span class="line">           FunctionDeclaration<span class="built_in">(path</span>) &#123;</span><br><span class="line">	       const updateParamNameVisitor = &#123;</span><br><span class="line">                  Identifier<span class="built_in">(path</span>) &#123;</span><br><span class="line">                    <span class="keyword">if</span> <span class="built_in">(path</span>.<span class="type">node</span><span class="built_in">.name</span> === this.paramName) &#123;</span><br><span class="line">                     <span class="built_in"> path</span>.<span class="type">node</span><span class="built_in">.name</span> = <span class="string">"x"</span>;</span><br><span class="line">                    &#125;</span><br><span class="line">                  &#125;</span><br><span class="line">                &#125;;</span><br><span class="line">                const param =<span class="built_in"> path</span>.<span class="type">node</span>.params[<span class="number">0</span>];</span><br><span class="line">                paramName = param<span class="built_in">.name</span>;</span><br><span class="line">                param<span class="built_in">.name</span> = <span class="string">"x"</span>;</span><br><span class="line">               <span class="built_in"> path</span>.traverse(updateParamNameVisitor, &#123; paramName &#125;);</span><br><span class="line">            &#125;,</span><br><span class="line">	&#125;</span><br></pre></td></tr></table></figure>
+<p>到这里我们已经对Babel工作流程大概有了一些了解，下面我们再说一下Babel的工具集。</p>
+<h3 id="Babel的工具集"><a href="#Babel的工具集" class="headerlink" title="Babel的工具集"></a>Babel的工具集</h3><p>Babel 实际上是一组模块的集合，在上面介绍Babel工作流程中也都提到过。</p>
+<h4 id="Babylon"><a href="#Babylon" class="headerlink" title="Babylon"></a><a href="https://github.com/babel/babylon" target="_blank" rel="noopener">Babylon</a></h4><p>“Babylon 是 Babel的解析器。最初是从Acorn项目fork出来的。Acorn非常快，易于使用，并且针对非标准特性(以及那些未来的标准特性) 设计了一个基于插件的架构。”。这里直接引用了手册里的说明，可以说Babylon定义了把代码解析成AST的一套规范。引用一个例子：</p>
+<figure class="highlight nimrod"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> * <span class="keyword">as</span> babylon <span class="keyword">from</span> <span class="string">"babylon"</span>;</span><br><span class="line"><span class="keyword">const</span> code = `function square(n) &#123;</span><br><span class="line">  <span class="keyword">return</span> n * n;</span><br><span class="line">&#125;`;</span><br><span class="line"></span><br><span class="line">babylon.parse(code);</span><br><span class="line">// <span class="type">Node</span> &#123;</span><br><span class="line">//   <span class="keyword">type</span>: <span class="string">"File"</span>,</span><br><span class="line">//   start: <span class="number">0</span>,</span><br><span class="line">//   <span class="keyword">end</span>: <span class="number">38</span>,</span><br><span class="line">//   loc: <span class="type">SourceLocation</span> <span class="meta">&#123;...&#125;</span>,</span><br><span class="line">//   program: <span class="type">Node</span> <span class="meta">&#123;...&#125;</span>,</span><br><span class="line">//   comments: [],</span><br><span class="line">//   tokens: [...]</span><br><span class="line">// &#125;</span><br></pre></td></tr></table></figure>
+<h4 id="babel-traverse"><a href="#babel-traverse" class="headerlink" title="babel-traverse"></a><a href="https://github.com/babel/babel/tree/master/packages/babel-traverse" target="_blank" rel="noopener">babel-traverse</a></h4><p>babel-traverse用于维护操作AST的状态，定义了更新、添加和移除节点的操作方法。之前也说到，path参数里面的属性和方法都是在babel-traverse里面定义的。这里还是引用一个例子，将babel-traverse和Babylon一起使用来遍历和更新节点：</p>
+<figure class="highlight xquery"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> * <span class="keyword">as</span> babylon from <span class="string">"babylon"</span>;</span><br><span class="line"><span class="keyword">import</span> traverse from <span class="string">"babel-traverse"</span>;</span><br><span class="line"></span><br><span class="line">const code = `<span class="keyword">function</span> square(n) &#123;</span><br><span class="line">  <span class="keyword">return</span> n * n;</span><br><span class="line">&#125;`;</span><br><span class="line"></span><br><span class="line">const ast = babylon.parse(code);</span><br><span class="line"></span><br><span class="line">traverse(ast, &#123;</span><br><span class="line">  enter<span class="built_in">(path</span>) &#123;</span><br><span class="line">    <span class="keyword">if</span> (</span><br><span class="line">     <span class="built_in"> path</span>.<span class="type">node</span>.type === <span class="string">"Identifier"</span> &amp;&amp;</span><br><span class="line">     <span class="built_in"> path</span>.<span class="type">node</span><span class="built_in">.name</span> === <span class="string">"n"</span></span><br><span class="line">    ) &#123;</span><br><span class="line">     <span class="built_in"> path</span>.<span class="type">node</span><span class="built_in">.name</span> = <span class="string">"x"</span>;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;);</span><br></pre></td></tr></table></figure>
+<h4 id="babel-types"><a href="#babel-types" class="headerlink" title="babel-types"></a><a href="https://github.com/babel/babel/tree/master/packages/babel-types" target="_blank" rel="noopener">babel-types</a></h4><p>babel-types是一个强大用于处理AST节点的工具库，“它包含了构造、验证以及变换AST节点的方法。该工具库包含考虑周到的工具方法，对编写处理AST逻辑非常有用。”这个工具库的具体的API可以参考Babel官网：<a href="https://babeljs.io/docs/en/babel-types" target="_blank" rel="noopener">https://babeljs.io/docs/en/babel-types</a></p>
+<p>这里我们还是用import命令来演示一个例子，比如我们要判断import导入是什么类型的导入，这里先写出三种形式的导入：</p>
+<figure class="highlight clean"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; Ajax &#125; <span class="keyword">from</span> <span class="string">'../lib/utils'</span>;</span><br><span class="line"><span class="keyword">import</span> utils <span class="keyword">from</span> <span class="string">'../lib/utils'</span>;</span><br><span class="line"><span class="keyword">import</span> * <span class="keyword">as</span> utils <span class="keyword">from</span> <span class="string">'../lib/utils'</span>;</span><br></pre></td></tr></table></figure>
+<p>用于表示上面导入的三个变量的节点是不同的，分别叫做ImportSpecifier、ImportDefaultSpecifier和ImportNamespaceSpecifier。具体可以参考<a href="https://github.com/babel/babylon/blob/master/ast/spec.md#importspecifier" target="_blank" rel="noopener">这里</a>。<br>如果我们只对导入指定变量的import命令语句做处理，那么我们的babel插件就可以这样写：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">plugin</span> (<span class="params"></span>) </span>&#123;</span><br><span class="line">	<span class="keyword">return</span> <span class="function">(<span class="params">&#123; types &#125;</span>) =&gt;</span> (&#123;</span><br><span class="line">	    visitor: &#123;</span><br><span class="line">	        ImportDeclaration (path, state) &#123; </span><br><span class="line">        	    <span class="keyword">const</span> specifiers = path.node.specifiers;</span><br><span class="line">        	    specifiers.forEach(<span class="function">(<span class="params">specifier</span>) =&gt;</span> &#123;</span><br><span class="line">	                <span class="keyword">if</span> (!types.isImportDefaultSpecifier(specifier) &amp;&amp; !types.isImportNamespaceSpecifier(specifier)) &#123;</span><br><span class="line">            	        <span class="comment">// do something</span></span><br><span class="line">            	    &#125;</span><br><span class="line">    	        &#125;)</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>到这里，关于Babel的原理差不多都讲完了，下面我们尝试写一个具体功能的Babel插件。</p>
+<h3 id="Babel插件实践"><a href="#Babel插件实践" class="headerlink" title="Babel插件实践"></a>Babel插件实践</h3><p>这里我们尝试实现这样一个功能：当使用UI组件库时，我们常常只会用到组件库中的部分组件，就像这样：</p>
+<figure class="highlight clean"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> &#123; Select, Pagination &#125; <span class="keyword">from</span> <span class="string">'xxx-ui'</span>;</span><br></pre></td></tr></table></figure>
+<p>但是这样却引入了整个组件库，那么打包的时候也会把整个组件库的代码打包进去，这显然是不太合理的，所以我们希望能够在打包的时候只打包我们需要的组件。</p>
+<p>Let’s do it!</p>
+<p>首先我们需要告诉Babel怎么找到对应组件的路径，也就是说我们需要自定义一个规则告诉Babel根据指定名称加载对应组件，这里我们定义一个方法：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">"customSourceFunc"</span>: <span class="function"><span class="params">componentName</span> =&gt;</span>（<span class="string">`./xxx-ui/src/components/ui-base/<span class="subst">$&#123;componentName&#125;</span>/<span class="subst">$&#123;componentName&#125;</span>`</span>）&#125;</span><br></pre></td></tr></table></figure>
+<p>这个方法作为这个插件的配置参数，可以配置到.babelrc或者babel-loader里面。<br>接下来我们需要定义visitor对象，有了之前的铺垫，这里直接上代码：</p>
+<figure class="highlight javascript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line">visitor: &#123;</span><br><span class="line">	ImportDeclaration (path, &#123; opts &#125;) &#123;</span><br><span class="line">	    <span class="keyword">const</span> specifiers = path.node.specifiers;</span><br><span class="line">	    <span class="keyword">const</span> source = path.node.source;</span><br><span class="line"></span><br><span class="line">	    <span class="keyword">if</span> (<span class="built_in">Array</span>.isArray(opts)) &#123;</span><br><span class="line">	        opts.forEach(<span class="function"><span class="params">opt</span> =&gt;</span> &#123;</span><br><span class="line">	            assert(opt.libraryName, <span class="string">'libraryName should be provided'</span>);</span><br><span class="line">	        &#125;);</span><br><span class="line">	        <span class="keyword">if</span> (!opts.find(<span class="function"><span class="params">opt</span> =&gt;</span> opt.libraryName === source.value)) <span class="keyword">return</span>;</span><br><span class="line">	    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">	        assert(opts.libraryName, <span class="string">'libraryName should be provided'</span>);</span><br><span class="line">	        <span class="keyword">if</span> (opts.libraryName !== source.value) <span class="keyword">return</span>;</span><br><span class="line">	    &#125;</span><br><span class="line"></span><br><span class="line">	    <span class="keyword">const</span> opt = <span class="built_in">Array</span>.isArray(opts) ? opts.find(<span class="function"><span class="params">opt</span> =&gt;</span> opt.libraryName === source.value) : opts;</span><br><span class="line">	    opt.camel2UnderlineComponentName = <span class="keyword">typeof</span> opt.camel2UnderlineComponentName === <span class="string">'undefined'</span></span><br><span class="line">	        ? <span class="literal">false</span></span><br><span class="line">	        : opt.camel2UnderlineComponentName;</span><br><span class="line">	    opt.camel2DashComponentName = <span class="keyword">typeof</span> opt.camel2DashComponentName === <span class="string">'undefined'</span></span><br><span class="line">	        ? <span class="literal">false</span></span><br><span class="line">	        : opt.camel2DashComponentName;</span><br><span class="line"></span><br><span class="line">	    <span class="keyword">if</span> (!types.isImportDefaultSpecifier(specifiers[<span class="number">0</span>]) &amp;&amp; !types.isImportNamespaceSpecifier(specifiers[<span class="number">0</span>])) &#123;</span><br><span class="line">    		<span class="keyword">const</span> declarations = specifiers.map(<span class="function">(<span class="params">specifier</span>) =&gt;</span> &#123;</span><br><span class="line">                    <span class="keyword">const</span> transformedSourceName = opt.camel2UnderlineComponentName</span><br><span class="line">                	? camel2Underline(specifier.imported.name)</span><br><span class="line">                	: opt.camel2DashComponentName</span><br><span class="line">            		    ? camel2Dash(specifier.imported.name)</span><br><span class="line">            		    : specifier.imported.name;</span><br><span class="line">                    <span class="keyword">return</span> types.ImportDeclaration([types.ImportDefaultSpecifier(specifier.local)],</span><br><span class="line">                	types.StringLiteral(opt.customSourceFunc(transformedSourceName)));</span><br><span class="line">                &#125;);</span><br><span class="line">    		path.replaceWithMultiple(declarations);</span><br><span class="line">    	&#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>代码中的camel2UnderlineComponentName和camel2DashComponentName可以先不考虑，不过从字面上也能猜到是什么功能。<br>代码主要就是遍历模块内左右的ImportDeclaration节点，找出specifier为ImportSpecifier类型的节点，利用传入customSourceFunc得到其绝对路径的导入方式，然后替换原来的ImportDeclaration节点，这样就可以实现组件的按需加载了。</p>
+<p>我们来测试一下效果，</p>
+<figure class="highlight coffeescript"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line">const babel = <span class="built_in">require</span>(<span class="string">'babel-core'</span>);</span><br><span class="line">const types = <span class="built_in">require</span>(<span class="string">'babel-types'</span>);</span><br><span class="line"></span><br><span class="line">const plugin = <span class="built_in">require</span>(<span class="string">'./../lib/index.js'</span>);</span><br><span class="line"></span><br><span class="line">const visitor = plugin(&#123;types&#125;);</span><br><span class="line"></span><br><span class="line">const code = `<span class="javascript"></span></span><br><span class="line"><span class="javascript">    <span class="keyword">import</span> &#123; Select <span class="keyword">as</span> MySelect, Pagination &#125; <span class="keyword">from</span> <span class="string">'xxx-ui'</span>;</span></span><br><span class="line"><span class="javascript">    <span class="keyword">import</span> * <span class="keyword">as</span> UI <span class="keyword">from</span> <span class="string">'xxx-ui'</span>;</span></span><br><span class="line"><span class="javascript"></span>`;</span><br><span class="line"></span><br><span class="line">const result = babel.transform(code, &#123;</span><br><span class="line">    plugins: [</span><br><span class="line">        [</span><br><span class="line">            visitor,</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="string">"libraryName"</span>: <span class="string">"xxx-ui"</span>,</span><br><span class="line">                <span class="string">"camel2DashComponentName"</span>: <span class="literal">true</span>,</span><br><span class="line">                <span class="string">"customSourceFunc"</span>: componentName =&gt;（`<span class="javascript">./xxx-ui/src/components/ui-base/$&#123;componentName&#125;/$&#123;componentName&#125;</span>`）&#125;</span><br><span class="line">            &#125;</span><br><span class="line">        ]</span><br><span class="line">    ]</span><br><span class="line">&#125;);</span><br><span class="line"></span><br><span class="line"><span class="built_in">console</span>.log(result.code);</span><br><span class="line"><span class="regexp">//</span> <span class="keyword">import</span> MySelect <span class="keyword">from</span> <span class="string">'./xxx-ui/src/components/ui-base/select/select'</span>;</span><br><span class="line"><span class="regexp">//</span> <span class="keyword">import</span> Pagination <span class="keyword">from</span> <span class="string">'./xxx-ui/src/components/ui-base/pagination/pagination'</span>;</span><br><span class="line"><span class="regexp">//</span> <span class="keyword">import</span> * <span class="keyword">as</span> UI <span class="keyword">from</span> <span class="string">'xxx-ui'</span>;</span><br></pre></td></tr></table></figure>
+<p>这个Babel已发布到npm，插件地址：<a href="https://www.npmjs.com/package/babel-plugin-import-slim" target="_blank" rel="noopener">https://www.npmjs.com/package/babel-plugin-import-slim</a></p>
+<p>有兴趣的也可以查看插件源码：<a href="https://github.com/hudingyu/babel-plugin-import-slim" target="_blank" rel="noopener">https://github.com/hudingyu/babel-plugin-import-slim</a></p>
+<p>其实这个插件算是乞丐版的按需加载组件，ant-design的按需加载插件<a href="https://github.com/ant-design/babel-plugin-import" target="_blank" rel="noopener">babel-plugin-import</a>实现了更完备的方案，也对React做了特殊适配，后续有时间我会对这个插件做一次源码的分析。</p>
+<p>差不多就是这样了。</p>
+<p>以上。</p>
+
+
+                <hr>
+
+                
+
+                <ul class="pager">
+                    
+                        <li class="previous">
+                            <a href="/2019/07/17/understand-redux-middleware/" data-toggle="tooltip" data-placement="top" title="理解Redux中间件，这一篇就够了">&larr; Previous Post</a>
+                        </li>
+                    
+                    
+                        <li class="next">
+                            <a href="/2018/12/16/Node-js爬取科技新闻网站cnBeta/" data-toggle="tooltip" data-placement="top" title="Node.js爬取科技新闻网站cnBeta">Next Post &rarr;</a>
+                        </li>
+                    
+                </ul>
+                <div id="gitalk-container"></div>
+                
+
+                
+
+            </div>
+
+            
+    <!-- Side Catalog Container -->
+        
+            <div class="
+                col-lg-2 col-lg-offset-0
+                visible-lg-block
+                sidebar-container
+                catalog-container">
+                <div class="side-catalog">
+                    <hr class="hidden-sm hidden-xs">
+                    <h5>
+                        <a class="catalog-toggle" href="#">CATALOG</a>
+                    </h5>
+                    <ul class="catalog-body"></ul>
+                </div>
+            </div>
+        
+
+    <!-- Sidebar Container -->
+
+            <div class="
+                col-lg-8 col-lg-offset-2
+                col-md-10 col-md-offset-1
+                sidebar-container">
+
+                <!-- Featured Tags -->
+                
+
+                <!-- Friends Blog -->
+                
+            </div>
+
+        </div>
+    </div>
+</article>
+
+
+
+
+
+
+
+<!-- async load function -->
+<script>
+    function async(u, c) {
+      var d = document, t = 'script',
+          o = d.createElement(t),
+          s = d.getElementsByTagName(t)[0];
+      o.src = u;
+      if (c) { o.addEventListener('load', function (e) { c(null, e); }, false); }
+      s.parentNode.insertBefore(o, s);
+    }
+</script>
+<!-- anchor-js, Doc:http://bryanbraun.github.io/anchorjs/ -->
+<script>
+    async("https://cdn.bootcss.com/anchor-js/1.1.1/anchor.min.js",function(){
+        anchors.options = {
+          visible: 'always',
+          placement: 'right',
+          icon: '#'
+        };
+        anchors.add().remove('.intro-header h1').remove('.subheading').remove('.sidebar-container h5');
+    })
+</script>
+<style>
+    /* place left on bigger screen */
+    @media all and (min-width: 800px) {
+        .anchorjs-link{
+            position: absolute;
+            left: -0.75em;
+            font-size: 1.1em;
+            margin-top : -0.1em;
+        }
+    }
+</style>
+
+
+
+    <!-- Footer -->
+    <!-- Footer -->
+<footer>
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                <ul class="list-inline text-center">
+                
+                
+                
+
+                
+
+                
+
+                
+                    <li>
+                        <a target="_blank"  href="https://github.com/hudingyu">
+                            <span class="fa-stack fa-lg">
+                                <i class="fa fa-circle fa-stack-2x"></i>
+                                <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                            </span>
+                        </a>
+                    </li>
+                
+
+                
+
+                </ul>
+                <p class="copyright text-muted">
+                    Copyright &copy; Turling Blog 2019 
+                    <!-- <br> -->
+                    <!-- Theme by <a href="http://huangxuan.me">Hux</a> 
+                    <span style="display: inline-block; margin: 0 5px;">
+                        <i class="fa fa-heart"></i>
+                    </span> 
+                    Ported by <a href="http://blog.kaijun.rocks">Kaijun</a> |  -->
+                    <!-- <iframe
+                        style="margin-left: 2px; margin-bottom:-5px;"
+                        frameborder="0" scrolling="0" width="91px" height="20px"
+                        src="https://ghbtns.com/github-btn.html?user=kaijun&repo=hexo-theme-huxblog&type=star&count=true" >
+                    </iframe> -->
+                </p>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<!-- jQuery -->
+<script src="/js/jquery.min.js"></script>
+
+<!-- Bootstrap Core JavaScript -->
+<script src="/js/bootstrap.min.js"></script>
+
+<!-- Custom Theme JavaScript -->
+<script src="/js/hux-blog.min.js"></script>
+
+
+<!-- async load function -->
+<script>
+    function async(u, c) {
+      var d = document, t = 'script',
+          o = d.createElement(t),
+          s = d.getElementsByTagName(t)[0];
+      o.src = u;
+      if (c) { o.addEventListener('load', function (e) { c(null, e); }, false); }
+      s.parentNode.insertBefore(o, s);
+    }
+</script>
+
+<!-- 
+     Because of the native support for backtick-style fenced code blocks 
+     right within the Markdown is landed in Github Pages, 
+     From V1.6, There is no need for Highlight.js, 
+     so Huxblog drops it officially.
+
+     - https://github.com/blog/2100-github-pages-now-faster-and-simpler-with-jekyll-3-0  
+     - https://help.github.com/articles/creating-and-highlighting-code-blocks/    
+-->
+<!--
+    <script>
+        async("http://cdn.bootcss.com/highlight.js/8.6/highlight.min.js", function(){
+            hljs.initHighlightingOnLoad();
+        })
+    </script>
+    <link href="http://cdn.bootcss.com/highlight.js/8.6/styles/github.min.css" rel="stylesheet">
+-->
+
+
+<!-- jquery.tagcloud.js -->
+<script>
+    // only load tagcloud.js in tag.html
+    if($('#tag_cloud').length !== 0){
+        async("https://hudingyu.github.io/js/jquery.tagcloud.js",function(){
+            $.fn.tagcloud.defaults = {
+                //size: {start: 1, end: 1, unit: 'em'},
+                color: {start: '#bbbbee', end: '#0085a1'},
+            };
+            $('#tag_cloud a').tagcloud();
+        })
+    }
+</script>
+
+<script type="text/javascript">
+    const gitalk = new Gitalk({
+        clientID: 'd526317e8c13bd9e1344',
+        clientSecret: '3f2e043a8a04f4babf9e5d0804fd8e14f1b8d75d',
+        repo: 'blog-comments',
+        owner: 'hudingyu',
+        admin: ['hudingyu'],
+        id: md5(location.pathname),      // Ensure uniqueness and length less than 50
+        distractionFreeMode: false  // Facebook-like distraction free mode
+    })
+
+    gitalk.render('gitalk-container')
+  </script>
+
+<!--fastClick.js -->
+<script>
+    async("https://cdn.bootcss.com/fastclick/1.0.6/fastclick.min.js", function(){
+        var $nav = document.querySelector("nav");
+        if($nav) FastClick.attach($nav);
+    })
+</script>
+
+
+<!-- Google Analytics -->
+
+
+
+
+<!-- Baidu Tongji -->
+
+<script>
+    // dynamic User by Hux
+    var _baId = '140353961df3b8b3911818d8a175b712';
+
+    // Originial
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "//hm.baidu.com/hm.js?" + _baId;
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+</script>
+
+
+<!-- Side Catalog -->
+
+<script type="text/javascript">
+    function generateCatalog (selector) {
+        var P = $('div.post-container'),a,n,t,l,i,c;
+        a = P.find('h1,h2,h3,h4,h5,h6');
+        a.each(function () {
+            n = $(this).prop('tagName').toLowerCase();
+            i = "#"+$(this).prop('id');
+            t = $(this).text();
+            c = $('<a href="'+i+'" rel="nofollow">'+t+'</a>');
+            l = $('<li class="'+n+'_nav"></li>').append(c);
+            $(selector).append(l);
+        });
+        return true;    
+    }
+
+    generateCatalog(".catalog-body");
+
+    // toggle side catalog
+    $(".catalog-toggle").click((function(e){
+        e.preventDefault();
+        $('.side-catalog').toggleClass("fold")
+    }))
+
+    /*
+     * Doc: https://github.com/davist11/jQuery-One-Page-Nav
+     * Fork by Hux to support padding
+     */
+    async("/js/jquery.nav.js", function () {
+        $('.catalog-body').onePageNav({
+            currentClass: "active",
+            changeHash: !1,
+            easing: "swing",
+            filter: "",
+            scrollSpeed: 700,
+            scrollOffset: 0,
+            scrollThreshold: .2,
+            begin: null,
+            end: null,
+            scrollChange: null,
+            padding: 80
+        });
+    });
+</script>
+
+
+
+
+
+<!-- Image to hack wechat -->
+<!-- <img src="https://hudingyu.github.io/img/icon_wechat.png" width="0" height="0" /> -->
+<!-- Migrate from head to bottom, no longer block render and still work -->
+
+</body>
+
+</html>
