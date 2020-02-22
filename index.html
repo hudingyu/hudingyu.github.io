@@ -94,13 +94,6 @@
 
                         
                         <li>
-                            <a href="/about/">About</a>
-                        </li>
-                        
-                    
-
-                        
-                        <li>
                             <a href="/archives/">Archives</a>
                         </li>
                         
@@ -109,6 +102,13 @@
                         
                         <li>
                             <a href="/tags/">Tags</a>
+                        </li>
+                        
+                    
+
+                        
+                        <li>
+                            <a href="/about/">About</a>
                         </li>
                         
                     
@@ -188,6 +188,29 @@
 
 <div class="post-preview">
 
+    <a href="/2020/02/22/Golang-series-context/">
+        <h2 class="post-title">
+            Go基础系列：深入理解 context
+        </h2>
+        <h3 class="post-subtitle">
+            
+        </h3>
+        <div class="post-content-preview">
+            前言这篇文章将介绍Golang并发编程中常用到一种编程模式：context。本文将从为什么需要context出发，深入了解context的实现原理，以及了解如何使用context。
+为什么需要context在并发程序中，由于超时、取消操作或者一些异常情况，往往需要进行抢占操作或者中断后续操作。熟悉channel的朋友应该都见过使用done channel来处理此类问题。比如以下这个例子：
+1......
+        </div>
+    </a>
+    <p class="post-meta">
+        Posted by Turling on
+        2020-02-22
+    </p>
+
+</div>
+<hr>
+
+<div class="post-preview">
+
     <a href="/2019/12/09/Golang-series-channel/">
         <h2 class="post-title">
             Go基础系列：深入理解 channel
@@ -255,7 +278,7 @@ interface（接口）定义在Go语言中，如果自定义类型（比如struct
 
     <a href="/2019/07/17/understand-redux-middleware/">
         <h2 class="post-title">
-            理解Redux中间件，这一篇就够了
+            深入理解Redux中间件
         </h2>
         <h3 class="post-subtitle">
             
@@ -422,7 +445,7 @@ Redux中间件工作机制用过Redux中间件的朋友都知道redux给我们�
 
                 </ul>
                 <p class="copyright text-muted">
-                    Copyright &copy; Turling Blog 2019 
+                    Copyright &copy; Turling Blog 2020 
                     <!-- <br> -->
                     <!-- Theme by <a href="http://huangxuan.me">Hux</a> 
                     <span style="display: inline-block; margin: 0 5px;">

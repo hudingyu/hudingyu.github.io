@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Head tag -->
+<head><meta name="generator" content="Hexo 3.9.0">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="google-site-verification" content="xBT4GhYoi5qRD5tr338pgPM5OWHHIDR6mNg1a3euekI">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content>
+    <meta name="keyword" content>
+    <link rel="shortcut icon" href="/img/favicon.ico">
+
+    <title>
+        
+          Go基础系列：深入理解 context - Turling的博客 | Turling Blog
+        
+    </title>
+
+    <link rel="canonical" href="https://turling.me/2020/02/22/Golang-series-context/">
+
+    <!-- Bootstrap Core CSS -->
+    <link rel="stylesheet" href="/css/bootstrap.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/hux-blog.min.css">
+
+    <!-- Pygments Highlight CSS -->
+    <link rel="stylesheet" href="/css/highlight.css">
+
+    <!-- Custom Fonts -->
+    <!-- <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css" rel="stylesheet" type="text/css"> -->
+    <!-- Hux change font-awesome CDN to qiniu -->
+    <link href="https://cdn.staticfile.org/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+
+
+    <!-- Hux Delete, sad but pending in China
+    <link href='http://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+    <link href='http://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/
+    css'>
+    -->
+
+
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+        <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+        <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+    
+    <!-- ga & ba script hoook -->
+    <script></script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.css">
+    <script src="https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js"></script>
+    <script src="https://cdn.bootcss.com/blueimp-md5/2.11.0/js/md5.min.js"></script>
+</head>
+
+
+<!-- hack iOS CSS :active style -->
+<body ontouchstart="">
+
+    <!-- Navigation -->
+<nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+    <div class="container-fluid">
+        <!-- Brand and toggle get grouped for better mobile display -->
+        <div class="navbar-header page-scroll">
+            <button type="button" class="navbar-toggle">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="/">Turling Blog</a>
+        </div>
+
+        <!-- Collect the nav links, forms, and other content for toggling -->
+        <!-- Known Issue, found by Hux:
+            <nav>'s height woule be hold on by its content.
+            so, when navbar scale out, the <nav> will cover tags.
+            also mask any touch event of tags, unfortunately.
+        -->
+        <div id="huxblog_navbar">
+            <div class="navbar-collapse">
+                <ul class="nav navbar-nav navbar-right">
+                    <li>
+                        <a href="/">Home</a>
+                    </li>
+
+                    
+
+                        
+                    
+
+                        
+                        <li>
+                            <a href="/archives/">Archives</a>
+                        </li>
+                        
+                    
+
+                        
+                        <li>
+                            <a href="/tags/">Tags</a>
+                        </li>
+                        
+                    
+
+                        
+                        <li>
+                            <a href="/about/">About</a>
+                        </li>
+                        
+                    
+                    
+                </ul>
+            </div>
+        </div>
+        <!-- /.navbar-collapse -->
+    </div>
+    <!-- /.container -->
+</nav>
+<script>
+    // Drop Bootstarp low-performance Navbar
+    // Use customize navbar with high-quality material design animation
+    // in high-perf jank-free CSS3 implementation
+    var $body   = document.body;
+    var $toggle = document.querySelector('.navbar-toggle');
+    var $navbar = document.querySelector('#huxblog_navbar');
+    var $collapse = document.querySelector('.navbar-collapse');
+
+    $toggle.addEventListener('click', handleMagic)
+    function handleMagic(e){
+        if ($navbar.className.indexOf('in') > 0) {
+        // CLOSE
+            $navbar.className = " ";
+            // wait until animation end.
+            setTimeout(function(){
+                // prevent frequently toggle
+                if($navbar.className.indexOf('in') < 0) {
+                    $collapse.style.height = "0px"
+                }
+            },400)
+        }else{
+        // OPEN
+            $collapse.style.height = "auto"
+            $navbar.className += " in";
+        }
+    }
+</script>
+
+
+    <!-- Main Content -->
+    
+<!-- Image to hack wechat -->
+<!-- <img src="https://turling.me/img/icon_wechat.png" width="0" height="0"> -->
+<!-- <img src="{{ site.baseurl }}/{% if page.header-img %}{{ page.header-img }}{% else %}{{ site.header-img }}{% endif %}" width="0" height="0"> -->
+
+<!-- Post Header -->
+<style type="text/css">
+    header.intro-header{
+        background-image: url('desert.jpg')
+    }
+</style>
+<header class="intro-header" >
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                <div class="post-heading">
+                    <div class="tags">
+                        
+                          <a class="tag" href="/tags/#Golang" title="Golang">Golang</a>
+                        
+                    </div>
+                    <h1>Go基础系列：深入理解 context</h1>
+                    <h2 class="subheading"></h2>
+                    <span class="meta">
+                        Posted by Turling on
+                        2020-02-22
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- Post Content -->
+<article>
+    <div class="container">
+        <div class="row">
+
+    <!-- Post Container -->
+            <div class="
+                col-lg-8 col-lg-offset-2
+                col-md-10 col-md-offset-1
+                post-container">
+
+                <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>这篇文章将介绍<code>Golang</code>并发编程中常用到一种编程模式：<code>context</code>。本文将从为什么需要<code>context</code>出发，深入了解<code>context</code>的实现原理，以及了解如何使用<code>context</code>。</p>
+<h3 id="为什么需要context"><a href="#为什么需要context" class="headerlink" title="为什么需要context"></a>为什么需要context</h3><p>在并发程序中，由于超时、取消操作或者一些异常情况，往往需要进行抢占操作或者中断后续操作。熟悉<code>channel</code>的朋友应该都见过使用<code>done channel</code>来处理此类问题。比如以下这个例子：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	messages := <span class="built_in">make</span>(<span class="keyword">chan</span> <span class="keyword">int</span>, <span class="number">10</span>)</span><br><span class="line">	done := <span class="built_in">make</span>(<span class="keyword">chan</span> <span class="keyword">bool</span>)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">defer</span> <span class="built_in">close</span>(messages)</span><br><span class="line">	<span class="comment">// consumer</span></span><br><span class="line">	<span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">		ticker := time.NewTicker(<span class="number">1</span> * time.Second)</span><br><span class="line">		<span class="keyword">for</span> _ = <span class="keyword">range</span> ticker.C &#123;</span><br><span class="line">			<span class="keyword">select</span> &#123;</span><br><span class="line">			<span class="keyword">case</span> &lt;-done:</span><br><span class="line">				fmt.Println(<span class="string">"child process interrupt..."</span>)</span><br><span class="line">				<span class="keyword">return</span></span><br><span class="line">			<span class="keyword">default</span>:</span><br><span class="line">				fmt.Printf(<span class="string">"send message: %d\n"</span>, &lt;-messages)</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;()</span><br><span class="line"></span><br><span class="line">	<span class="comment">// producer</span></span><br><span class="line">	<span class="keyword">for</span> i := <span class="number">0</span>; i &lt; <span class="number">10</span>; i++ &#123;</span><br><span class="line">		messages &lt;- i</span><br><span class="line">	&#125;</span><br><span class="line">	time.Sleep(<span class="number">5</span> * time.Second)</span><br><span class="line">	<span class="built_in">close</span>(done)</span><br><span class="line">	time.Sleep(<span class="number">1</span> * time.Second)</span><br><span class="line">	fmt.Println(<span class="string">"main process exit!"</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上述例子中定义了一个<code>buffer</code>为0的<code>channel done</code>, 子协程运行着定时任务。如果主协程需要在某个时刻发送消息通知子协程中断任务退出，那么就可以让子协程监听这个<code>done channel</code>，一旦主协程关闭<code>done channel</code>，那么子协程就可以推出了，这样就实现了主协程通知子协程的需求。这很好，但是这也是有限的。</p>
+<p>如果我们可以在简单的通知上附加传递额外的信息来控制取消：为什么取消，或者有一个它必须要完成的最终期限，更或者有多个取消选项，我们需要根据额外的信息来判断选择执行哪个取消选项。</p>
+<p>考虑下面这种情况：假如主协程中有多个任务1, 2, …m，主协程对这些任务有超时控制；而其中任务1又有多个子任务1, 2, …n，任务1对这些子任务也有自己的超时控制，那么这些子任务既要感知主协程的取消信号，也需要感知任务1的取消信号。</p>
+<p>如果还是使用<code>done channel</code>的用法，我们需要定义两个<code>done channel</code>，子任务们需要同时监听这两个<code>done channel</code>。嗯，这样其实好像也还行哈。但是如果层级更深，如果这些子任务还有子任务，那么使用<code>done channel</code>的方式将会变得非常繁琐且混乱。</p>
+<p>我们需要一种优雅的方案来实现这样一种机制：</p>
+<ul>
+<li>上层任务取消后，所有的下层任务都会被取消；</li>
+<li>中间某一层的任务取消后，只会将当前任务的下层任务取消，而不会影响上层的任务以及同级任务。</li>
+</ul>
+<p>这个时候<code>context</code>就派上用场了。我们首先看看<code>context</code>的结构设计和实现原理。</p>
+<h3 id="context是什么"><a href="#context是什么" class="headerlink" title="context是什么"></a>context是什么</h3><h4 id="context接口"><a href="#context接口" class="headerlink" title="context接口"></a>context接口</h4><p>先看<code>Context</code>接口结构，看起来非常简单。<br><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> Context <span class="keyword">interface</span> &#123;</span><br><span class="line"></span><br><span class="line">    Deadline() (deadline time.Time, ok <span class="keyword">bool</span>)</span><br><span class="line">    </span><br><span class="line">    Done() &lt;-<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">    </span><br><span class="line">    Err() error</span><br><span class="line">    </span><br><span class="line">    Value(key <span class="keyword">interface</span>&#123;&#125;) <span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p><code>Context</code>接口包含四个方法：</p>
+<ul>
+<li><code>Deadline</code>返回绑定当前<code>context</code>的任务被取消的截止时间；如果没有设定期限，将返回 ok == false。</li>
+<li><code>Done</code> 当绑定当前<code>context</code>的任务被取消时，将返回一个关闭的<code>channel</code>；如果当前<code>context</code>不会被取消，将返回<code>nil</code>。</li>
+<li><code>Err</code> 如果<code>Done</code>返回的<code>channel</code>没有关闭，将返回<code>nil</code>;如果<code>Done</code>返回的<code>channel</code>已经关闭，将返回非空的值表示任务结束的原因。如果是<code>context</code>被取消，<code>Err</code>将返回<code>Canceled</code>；如果是<code>context</code>超时，<code>Err</code>将返回<code>DeadlineExceeded</code>。</li>
+<li><code>Value</code> 返回<code>context</code>存储的键值对中当前<code>key</code>对应的值，如果没有对应的<code>key</code>,则返回<code>nil</code>。</li>
+</ul>
+<p>可以看到<code>Done</code>方法返回的<code>channel</code>正是用来传递结束信号以抢占并中断当前任务；<code>Deadline</code>方法指示一段时间后当前<code>goroutine</code>是否会被取消；以及一个<code>Err</code>方法，来解释<code>goroutine</code>被取消的原因；而<code>Value</code>则用于获取特定于当前任务树的额外信息。而<code>context</code>所包含的额外信息键值对是如何存储的呢？其实可以想象一颗树，树的每个节点可能携带一组键值对, 如果当前节点上无法找到<code>key</code>所对应的值，就会向上去父节点里找，直到根节点，具体后面会说到。</p>
+<p>再来看看<code>context</code>包中的其他关键内容。</p>
+<h4 id="emptyCtx"><a href="#emptyCtx" class="headerlink" title="emptyCtx"></a>emptyCtx</h4><p><code>emptyCtx</code>是一个<code>int</code>类型的变量，但实现了<code>context</code>的接口。<code>emptyCtx</code>没有超时时间，不能取消，也不能存储任何额外信息，所以<code>emptyCtx</code>用来作为<code>context</code>树的根节点。<br><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// An emptyCtx is never canceled, has no values, and has no deadline. It is not</span></span><br><span class="line"><span class="comment">// struct&#123;&#125;, since vars of this type must have distinct addresses.</span></span><br><span class="line"><span class="keyword">type</span> emptyCtx <span class="keyword">int</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(*emptyCtx)</span> <span class="title">Deadline</span><span class="params">()</span> <span class="params">(deadline time.Time, ok <span class="keyword">bool</span>)</span></span> &#123;</span><br><span class="line">	<span class="keyword">return</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(*emptyCtx)</span> <span class="title">Done</span><span class="params">()</span> &lt;-<span class="title">chan</span> <span class="title">struct</span></span>&#123;&#125; &#123;</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(*emptyCtx)</span> <span class="title">Err</span><span class="params">()</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(*emptyCtx)</span> <span class="title">Value</span><span class="params">(key <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">interface</span></span>&#123;&#125; &#123;</span><br><span class="line">	<span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(e *emptyCtx)</span> <span class="title">String</span><span class="params">()</span> <span class="title">string</span></span> &#123;</span><br><span class="line">	<span class="keyword">switch</span> e &#123;</span><br><span class="line">	<span class="keyword">case</span> background:</span><br><span class="line">		<span class="keyword">return</span> <span class="string">"context.Background"</span></span><br><span class="line">	<span class="keyword">case</span> todo:</span><br><span class="line">		<span class="keyword">return</span> <span class="string">"context.TODO"</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> <span class="string">"unknown empty Context"</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">var</span> (</span><br><span class="line">	background = <span class="built_in">new</span>(emptyCtx)</span><br><span class="line">	todo       = <span class="built_in">new</span>(emptyCtx)</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">Background</span><span class="params">()</span> <span class="title">Context</span></span> &#123;</span><br><span class="line">	<span class="keyword">return</span> background</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">TODO</span><span class="params">()</span> <span class="title">Context</span></span> &#123;</span><br><span class="line">	<span class="keyword">return</span> todo</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>但我们一般不会直接使用<code>emptyCtx</code>，而是使用由<code>emptyCtx</code>实例化的两个变量，分别可以通过调用<code>Background</code>和<code>TODO</code>方法得到，但这两个<code>context</code>在实现上是一样的。那么<code>Background</code>和<code>TODO</code>方法得到的<code>context</code>有什么区别呢？可以看一下官方的解释：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Background returns a non-nil, empty Context. It is never canceled, has no</span></span><br><span class="line"><span class="comment">// values, and has no deadline. It is typically used by the main function,</span></span><br><span class="line"><span class="comment">// initialization, and tests, and as the top-level Context for incoming</span></span><br><span class="line"><span class="comment">// requests.</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// TODO returns a non-nil, empty Context. Code should use context.TODO when</span></span><br><span class="line"><span class="comment">// it's unclear which Context to use or it is not yet available (because the</span></span><br><span class="line"><span class="comment">// surrounding function has not yet been extended to accept a Context</span></span><br><span class="line"><span class="comment">// parameter).</span></span><br></pre></td></tr></table></figure>
+<p><code>Background</code>和<code>TODO</code>只是用于不同场景下：<br><code>Background</code>通常被用于主函数、初始化以及测试中，作为一个顶层的<code>context</code>，也就是说一般我们创建的<code>context</code>都是基于<code>Background</code>；而<code>TODO</code>是在不确定使用什么<code>context</code>的时候才会使用。</p>
+<p>下面将介绍两种不同功能的基础<code>context</code>类型：<code>valueCtx</code>和<code>cancelCtx</code>。</p>
+<h4 id="valueCtx"><a href="#valueCtx" class="headerlink" title="valueCtx"></a>valueCtx</h4><h5 id="valueCtx结构体"><a href="#valueCtx结构体" class="headerlink" title="valueCtx结构体"></a>valueCtx结构体</h5><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> valueCtx <span class="keyword">struct</span> &#123;</span><br><span class="line">	Context</span><br><span class="line">	key, val <span class="keyword">interface</span>&#123;&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *valueCtx)</span> <span class="title">Value</span><span class="params">(key <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">interface</span></span>&#123;&#125; &#123;</span><br><span class="line">	<span class="keyword">if</span> c.key == key &#123;</span><br><span class="line">		<span class="keyword">return</span> c.val</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> c.Context.Value(key)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><code>valueCtx</code>利用一个<code>Context</code>类型的变量来表示父节点<code>context</code>，所以当前<code>context</code>继承了父<code>context</code>的所有信息；<code>valueCtx</code>类型还携带一组键值对，也就是说这种<code>context</code>可以携带额外的信息。<code>valueCtx</code>实现了<code>Value</code>方法，用以在<code>context</code>链路上获取<code>key</code>对应的值，如果当前<code>context</code>上不存在需要的<code>key</code>,会沿着<code>context</code>链向上寻找<code>key</code>对应的值，直到根节点。</p>
+<h5 id="WithValue"><a href="#WithValue" class="headerlink" title="WithValue"></a>WithValue</h5><p><code>WithValue</code>用以向<code>context</code>添加键值对：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">WithValue</span><span class="params">(parent Context, key, val <span class="keyword">interface</span>&#123;&#125;)</span> <span class="title">Context</span></span> &#123;</span><br><span class="line">	<span class="keyword">if</span> key == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="built_in">panic</span>(<span class="string">"nil key"</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">if</span> !reflect.TypeOf(key).Comparable() &#123;</span><br><span class="line">		<span class="built_in">panic</span>(<span class="string">"key is not comparable"</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> &amp;valueCtx&#123;parent, key, val&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里添加键值对不是在原<code>context</code>结构体上直接添加，而是以此<code>context</code>作为父节点，重新创建一个新的<code>valueCtx</code>子节点，将键值对添加在子节点上，由此形成一条<code>context</code>链。获取<code>value</code>的过程就是在这条<code>context</code>链上由尾部上前搜寻：</p>
+<p><img src="context_1.png" alt></p>
+<h4 id="cancelCtx"><a href="#cancelCtx" class="headerlink" title="cancelCtx"></a>cancelCtx</h4><h5 id="cancelCtx结构体"><a href="#cancelCtx结构体" class="headerlink" title="cancelCtx结构体"></a>cancelCtx结构体</h5><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> cancelCtx <span class="keyword">struct</span> &#123;</span><br><span class="line">	Context</span><br><span class="line"></span><br><span class="line">	mu       sync.Mutex            <span class="comment">// protects following fields</span></span><br><span class="line">	done     <span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;         <span class="comment">// created lazily, closed by first cancel call</span></span><br><span class="line">	children <span class="keyword">map</span>[canceler]<span class="keyword">struct</span>&#123;&#125; <span class="comment">// set to nil by the first cancel call</span></span><br><span class="line">	err      error                 <span class="comment">// set to non-nil by the first cancel call</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> canceler <span class="keyword">interface</span> &#123;</span><br><span class="line">	cancel(removeFromParent <span class="keyword">bool</span>, err error)</span><br><span class="line">	Done() &lt;-<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>跟<code>valueCtx</code>类似，<code>cancelCtx</code>中也有一个<code>context</code>变量作为父节点；变量<code>done</code>表示一个<code>channel</code>，用来表示传递关闭信号；<code>children</code>表示一个<code>map</code>，存储了当前<code>context</code>节点下的子节点；<code>err</code>用于存储错误信息表示任务结束的原因。</p>
+<p>再来看一下<code>cancelCtx</code>实现的方法：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *cancelCtx)</span> <span class="title">Done</span><span class="params">()</span> &lt;-<span class="title">chan</span> <span class="title">struct</span></span>&#123;&#125; &#123;</span><br><span class="line">	c.mu.Lock()</span><br><span class="line">	<span class="keyword">if</span> c.done == <span class="literal">nil</span> &#123;</span><br><span class="line">		c.done = <span class="built_in">make</span>(<span class="keyword">chan</span> <span class="keyword">struct</span>&#123;&#125;)</span><br><span class="line">	&#125;</span><br><span class="line">	d := c.done</span><br><span class="line">	c.mu.Unlock()</span><br><span class="line">	<span class="keyword">return</span> d</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *cancelCtx)</span> <span class="title">Err</span><span class="params">()</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	c.mu.Lock()</span><br><span class="line">	err := c.err</span><br><span class="line">	c.mu.Unlock()</span><br><span class="line">	<span class="keyword">return</span> err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *cancelCtx)</span> <span class="title">cancel</span><span class="params">(removeFromParent <span class="keyword">bool</span>, err error)</span></span> &#123;</span><br><span class="line">	<span class="keyword">if</span> err == <span class="literal">nil</span> &#123;</span><br><span class="line">		<span class="built_in">panic</span>(<span class="string">"context: internal error: missing cancel error"</span>)</span><br><span class="line">	&#125;</span><br><span class="line">	c.mu.Lock()</span><br><span class="line">	<span class="keyword">if</span> c.err != <span class="literal">nil</span> &#123;</span><br><span class="line">		c.mu.Unlock()</span><br><span class="line">		<span class="keyword">return</span> <span class="comment">// already canceled</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 设置取消原因</span></span><br><span class="line">	c.err = err</span><br><span class="line">	设置一个关闭的channel或者将done channel关闭，用以发送关闭信号</span><br><span class="line">	<span class="keyword">if</span> c.done == <span class="literal">nil</span> &#123;</span><br><span class="line">		c.done = closedchan</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		<span class="built_in">close</span>(c.done)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 将子节点context依次取消</span></span><br><span class="line">	<span class="keyword">for</span> child := <span class="keyword">range</span> c.children &#123;</span><br><span class="line">		<span class="comment">// <span class="doctag">NOTE:</span> acquiring the child's lock while holding parent's lock.</span></span><br><span class="line">		child.cancel(<span class="literal">false</span>, err)</span><br><span class="line">	&#125;</span><br><span class="line">	c.children = <span class="literal">nil</span></span><br><span class="line">	c.mu.Unlock()</span><br><span class="line"></span><br><span class="line">	<span class="keyword">if</span> removeFromParent &#123;</span><br><span class="line">	    <span class="comment">// 将当前context节点从父节点上移除</span></span><br><span class="line">		removeChild(c.Context, c)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>可以发现<code>cancelCtx</code>类型变量其实也是<code>canceler</code>类型，因为<code>cancelCtx</code>实现了<code>canceler</code>接口。<br><code>Done</code>方法和<code>Err</code>方法没必要说了，<code>cancelCtx</code>类型的<code>context</code>在调用<code>cancel</code>方法时会设置取消原因，将<code>done channel</code>设置为一个关闭<code>channel</code>或者关闭<code>channel</code>，然后将子节点<code>context</code>依次取消，如果有需要还会将当前节点从父节点上移除。</p>
+<h5 id="WithCancel"><a href="#WithCancel" class="headerlink" title="WithCancel"></a>WithCancel</h5><p><code>WithCancel</code>函数用来创建一个可取消的<code>context</code>，即<code>cancelCtx</code>类型的<code>context</code>。<code>WithCancel</code>返回一个<code>context</code>和一个<code>CancelFunc</code>，调用<code>CancelFunc</code>即可触发<code>cancel</code>操作。直接看源码：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> CancelFunc <span class="function"><span class="keyword">func</span><span class="params">()</span></span></span><br><span class="line"><span class="function"></span></span><br><span class="line"><span class="function"><span class="title">func</span> <span class="title">WithCancel</span><span class="params">(parent Context)</span> <span class="params">(ctx Context, cancel CancelFunc)</span></span> &#123;</span><br><span class="line">	c := newCancelCtx(parent)</span><br><span class="line">	propagateCancel(parent, &amp;c)</span><br><span class="line">	<span class="keyword">return</span> &amp;c, <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123; c.cancel(<span class="literal">true</span>, Canceled) &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// newCancelCtx returns an initialized cancelCtx.</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">newCancelCtx</span><span class="params">(parent Context)</span> <span class="title">cancelCtx</span></span> &#123;</span><br><span class="line">    <span class="comment">// 将parent作为父节点context生成一个新的子节点</span></span><br><span class="line">	<span class="keyword">return</span> cancelCtx&#123;Context: parent&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">propagateCancel</span><span class="params">(parent Context, child canceler)</span></span> &#123;</span><br><span class="line">	<span class="keyword">if</span> parent.Done() == <span class="literal">nil</span> &#123;</span><br><span class="line">	    <span class="comment">// parent.Done()返回nil表明父节点以上的路径上没有可取消的context</span></span><br><span class="line">		<span class="keyword">return</span> <span class="comment">// parent is never canceled</span></span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 获取最近的类型为cancelCtx的祖先节点</span></span><br><span class="line">	<span class="keyword">if</span> p, ok := parentCancelCtx(parent); ok &#123;</span><br><span class="line">		p.mu.Lock()</span><br><span class="line">		<span class="keyword">if</span> p.err != <span class="literal">nil</span> &#123;</span><br><span class="line">			<span class="comment">// parent has already been canceled</span></span><br><span class="line">			child.cancel(<span class="literal">false</span>, p.err)</span><br><span class="line">		&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">			<span class="keyword">if</span> p.children == <span class="literal">nil</span> &#123;</span><br><span class="line">				p.children = <span class="built_in">make</span>(<span class="keyword">map</span>[canceler]<span class="keyword">struct</span>&#123;&#125;)</span><br><span class="line">			&#125;</span><br><span class="line">			<span class="comment">// 将当前子节点加入最近cancelCtx祖先节点的children中</span></span><br><span class="line">			p.children[child] = <span class="keyword">struct</span>&#123;&#125;&#123;&#125;</span><br><span class="line">		&#125;</span><br><span class="line">		p.mu.Unlock()</span><br><span class="line">	&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">		<span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">			<span class="keyword">select</span> &#123;</span><br><span class="line">			<span class="keyword">case</span> &lt;-parent.Done():</span><br><span class="line">				child.cancel(<span class="literal">false</span>, parent.Err())</span><br><span class="line">			<span class="keyword">case</span> &lt;-child.Done():</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;()</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">parentCancelCtx</span><span class="params">(parent Context)</span> <span class="params">(*cancelCtx, <span class="keyword">bool</span>)</span></span> &#123;</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		<span class="keyword">switch</span> c := parent.(<span class="keyword">type</span>) &#123;</span><br><span class="line">		<span class="keyword">case</span> *cancelCtx:</span><br><span class="line">			<span class="keyword">return</span> c, <span class="literal">true</span></span><br><span class="line">		<span class="keyword">case</span> *timerCtx:</span><br><span class="line">			<span class="keyword">return</span> &amp;c.cancelCtx, <span class="literal">true</span></span><br><span class="line">		<span class="keyword">case</span> *valueCtx:</span><br><span class="line">			parent = c.Context</span><br><span class="line">		<span class="keyword">default</span>:</span><br><span class="line">			<span class="keyword">return</span> <span class="literal">nil</span>, <span class="literal">false</span></span><br><span class="line">		&#125;</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>之前说到<code>cancelCtx</code>取消时，会将后代节点中所有的<code>cancelCtx</code>都取消，<code>propagateCancel</code>即用来建立当前节点与祖先节点这个取消关联逻辑。</p>
+<ol>
+<li>如果<code>parent.Done()</code>返回<code>nil</code>，表明父节点以上的路径上没有可取消的<code>context</code>，不需要处理；</li>
+<li>如果在<code>context</code>链上找到到<code>cancelCtx</code>类型的祖先节点，则判断这个祖先节点是否已经取消，如果已经取消就取消当前节点；否则将当前节点加入到祖先节点的<code>children</code>列表。</li>
+<li>否则开启一个协程，监听<code>parent.Done()</code>和<code>child.Done()</code>，一旦<code>parent.Done()</code>返回的<code>channel</code>关闭，即<code>context</code>链中某个祖先节点<code>context</code>被取消，则将当前<code>context</code>也取消。</li>
+</ol>
+<p>这里或许有个疑问，为什么是祖先节点而不是父节点？这是因为当前<code>context</code>链可能是这样的：</p>
+<p><img src="context_2.png" alt></p>
+<p>当前<code>cancelCtx</code>的父节点<code>context</code>并不是一个可取消的<code>context</code>，也就没法记录<code>children</code>。</p>
+<h5 id="timerCtx"><a href="#timerCtx" class="headerlink" title="timerCtx"></a>timerCtx</h5><p><code>timerCtx</code>是一种基于<code>cancelCtx</code>的<code>context</code>类型，从字面上就能看出，这是一种可以定时取消的<code>context</code>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> timerCtx <span class="keyword">struct</span> &#123;</span><br><span class="line">	cancelCtx</span><br><span class="line">	timer *time.Timer <span class="comment">// Under cancelCtx.mu.</span></span><br><span class="line"></span><br><span class="line">	deadline time.Time</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *timerCtx)</span> <span class="title">Deadline</span><span class="params">()</span> <span class="params">(deadline time.Time, ok <span class="keyword">bool</span>)</span></span> &#123;</span><br><span class="line">	<span class="keyword">return</span> c.deadline, <span class="literal">true</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *timerCtx)</span> <span class="title">cancel</span><span class="params">(removeFromParent <span class="keyword">bool</span>, err error)</span></span> &#123;</span><br><span class="line">    将内部的cancelCtx取消</span><br><span class="line">	c.cancelCtx.cancel(<span class="literal">false</span>, err)</span><br><span class="line">	<span class="keyword">if</span> removeFromParent &#123;</span><br><span class="line">		<span class="comment">// Remove this timerCtx from its parent cancelCtx's children.</span></span><br><span class="line">		removeChild(c.cancelCtx.Context, c)</span><br><span class="line">	&#125;</span><br><span class="line">	c.mu.Lock()</span><br><span class="line">	<span class="keyword">if</span> c.timer != <span class="literal">nil</span> &#123;</span><br><span class="line">	    取消计时器</span><br><span class="line">		c.timer.Stop()</span><br><span class="line">		c.timer = <span class="literal">nil</span></span><br><span class="line">	&#125;</span><br><span class="line">	c.mu.Unlock()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><code>timerCtx</code>内部使用<code>cancelCtx</code>实现取消，另外使用定时器<code>timer</code>和过期时间<code>deadline</code>实现定时取消的功能。<code>timerCtx</code>在调用<code>cancel</code>方法，会先将内部的<code>cancelCtx</code>取消，如果需要则将自己从<code>cancelCtx</code>祖先节点上移除，最后取消计时器。</p>
+<h5 id="WithDeadline"><a href="#WithDeadline" class="headerlink" title="WithDeadline"></a>WithDeadline</h5><p><code>WithDeadline</code>返回一个基于<code>parent</code>的可取消的<code>context</code>，并且其过期时间<code>deadline</code>不晚于所设置时间<code>d</code>。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">WithDeadline</span><span class="params">(parent Context, d time.Time)</span> <span class="params">(Context, CancelFunc)</span></span> &#123;</span><br><span class="line">	<span class="keyword">if</span> cur, ok := parent.Deadline(); ok &amp;&amp; cur.Before(d) &#123;</span><br><span class="line">		<span class="comment">// The current deadline is already sooner than the new one.</span></span><br><span class="line">		<span class="keyword">return</span> WithCancel(parent)</span><br><span class="line">	&#125;</span><br><span class="line">	c := &amp;timerCtx&#123;</span><br><span class="line">		cancelCtx: newCancelCtx(parent),</span><br><span class="line">		deadline:  d,</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="comment">// 建立新建context与可取消context祖先节点的取消关联关系</span></span><br><span class="line">	propagateCancel(parent, c)</span><br><span class="line">	dur := time.Until(d)</span><br><span class="line">	<span class="keyword">if</span> dur &lt;= <span class="number">0</span> &#123;</span><br><span class="line">		c.cancel(<span class="literal">true</span>, DeadlineExceeded) <span class="comment">// deadline has already passed</span></span><br><span class="line">		<span class="keyword">return</span> c, <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123; c.cancel(<span class="literal">false</span>, Canceled) &#125;</span><br><span class="line">	&#125;</span><br><span class="line">	c.mu.Lock()</span><br><span class="line">	<span class="keyword">defer</span> c.mu.Unlock()</span><br><span class="line">	<span class="keyword">if</span> c.err == <span class="literal">nil</span> &#123;</span><br><span class="line">		c.timer = time.AfterFunc(dur, <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">			c.cancel(<span class="literal">true</span>, DeadlineExceeded)</span><br><span class="line">		&#125;)</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">return</span> c, <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123; c.cancel(<span class="literal">true</span>, Canceled) &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<ol>
+<li>如果父节点<code>parent</code>有过期时间并且过期时间早于给定时间<code>d</code>，那么新建的子节点<code>context</code>无需设置过期时间，使用<code>WithCancel</code>创建一个可取消的<code>context</code>即可；</li>
+<li>否则，就要利用<code>parent</code>和过期时间<code>d</code>创建一个定时取消的<code>timerCtx</code>，并建立新建<code>context</code>与可取消<code>context</code>祖先节点的取消关联关系，接下来判断当前时间距离过期时间<code>d</code>的时长<code>dur</code>：<ul>
+<li>如果<code>dur</code>小于0，即当前已经过了过期时间，则直接取消新建的<code>timerCtx</code>，原因为<code>DeadlineExceeded</code>；</li>
+<li>否则，为新建的<code>timerCtx</code>设置定时器，一旦到达过期时间即取消当前<code>timerCtx</code>。</li>
+</ul>
+</li>
+</ol>
+<h5 id="WithTimeout"><a href="#WithTimeout" class="headerlink" title="WithTimeout"></a>WithTimeout</h5><p>与<code>WithDeadline</code>类似，<code>WithTimeout</code>也是创建一个定时取消的<code>context</code>，只不过<code>WithDeadline</code>是接收一个过期时间点，而<code>WithTimeout</code>接收一个相对当前时间的过期时长<code>timeout</code>:</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">WithTimeout</span><span class="params">(parent Context, timeout time.Duration)</span> <span class="params">(Context, CancelFunc)</span></span> &#123;</span><br><span class="line">	<span class="keyword">return</span> WithDeadline(parent, time.Now().Add(timeout))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="context的使用"><a href="#context的使用" class="headerlink" title="context的使用"></a>context的使用</h3><p>首先使用<code>context</code>实现文章开头<code>done channel</code>的例子来示范一下如何更优雅实现协程间取消信号的同步：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> &#123;</span><br><span class="line">	messages := <span class="built_in">make</span>(<span class="keyword">chan</span> <span class="keyword">int</span>, <span class="number">10</span>)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// producer</span></span><br><span class="line">	<span class="keyword">for</span> i := <span class="number">0</span>; i &lt; <span class="number">10</span>; i++ &#123;</span><br><span class="line">		messages &lt;- i</span><br><span class="line">	&#125;</span><br><span class="line"></span><br><span class="line">	ctx, cancel := context.WithTimeout(context.Background(), <span class="number">5</span>*time.Second)</span><br><span class="line"></span><br><span class="line">	<span class="comment">// consumer</span></span><br><span class="line">	<span class="keyword">go</span> <span class="function"><span class="keyword">func</span><span class="params">(ctx context.Context)</span></span> &#123;</span><br><span class="line">		ticker := time.NewTicker(<span class="number">1</span> * time.Second)</span><br><span class="line">		<span class="keyword">for</span> _ = <span class="keyword">range</span> ticker.C &#123;</span><br><span class="line">			<span class="keyword">select</span> &#123;</span><br><span class="line">			<span class="keyword">case</span> &lt;-ctx.Done():</span><br><span class="line">				fmt.Println(<span class="string">"child process interrupt..."</span>)</span><br><span class="line">				<span class="keyword">return</span></span><br><span class="line">			<span class="keyword">default</span>:</span><br><span class="line">				fmt.Printf(<span class="string">"send message: %d\n"</span>, &lt;-messages)</span><br><span class="line">			&#125;</span><br><span class="line">		&#125;</span><br><span class="line">	&#125;(ctx)</span><br><span class="line"></span><br><span class="line">	<span class="keyword">defer</span> <span class="built_in">close</span>(messages)</span><br><span class="line">	<span class="keyword">defer</span> cancel()</span><br><span class="line"></span><br><span class="line">	<span class="keyword">select</span> &#123;</span><br><span class="line">	<span class="keyword">case</span> &lt;-ctx.Done():</span><br><span class="line">		time.Sleep(<span class="number">1</span> * time.Second)</span><br><span class="line">		fmt.Println(<span class="string">"main process exit!"</span>)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这个例子中，只要让子线程监听主线程传入的<code>ctx</code>，一旦<code>ctx.Done()</code>返回空<code>channel</code>，子线程即可取消执行任务。但这个例子还无法展现<code>context</code>的传递取消信息的强大优势。</p>
+<p>阅读过<code>net/http</code>包的朋友可能注意到在实现<code>http server</code>时就用到了<code>context</code>, 下面简单分析一下。</p>
+<p>1、首先<code>Server</code>在开启服务时会创建一个<code>valueCtx</code>,存储了<code>server</code>的相关信息，之后每建立一条连接就会开启一个协程，并携带此<code>valueCtx</code>。<br><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(srv *Server)</span> <span class="title">Serve</span><span class="params">(l net.Listener)</span> <span class="title">error</span></span> &#123;</span><br><span class="line">	</span><br><span class="line">	...</span><br><span class="line"></span><br><span class="line">	<span class="keyword">var</span> tempDelay time.Duration     <span class="comment">// how long to sleep on accept failure</span></span><br><span class="line">	baseCtx := context.Background() <span class="comment">// base is always background, per Issue 16220</span></span><br><span class="line">	ctx := context.WithValue(baseCtx, ServerContextKey, srv)</span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		rw, e := l.Accept()</span><br><span class="line">		</span><br><span class="line">		...</span><br><span class="line">		</span><br><span class="line">		tempDelay = <span class="number">0</span></span><br><span class="line">		c := srv.newConn(rw)</span><br><span class="line">		c.setState(c.rwc, StateNew) <span class="comment">// before Serve can return</span></span><br><span class="line">		<span class="keyword">go</span> c.serve(ctx)</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>2、建立连接之后会基于传入的<code>context</code>创建一个<code>valueCtx</code>用于存储本地地址信息，之后在此基础上又创建了一个<code>cancelCtx</code>，然后开始从当前连接中读取网络请求，每当读取到一个请求则会将该<code>cancelCtx</code>传入，用以传递取消信号。一旦连接断开，即可发送取消信号，取消所有进行中的网络请求。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *conn)</span> <span class="title">serve</span><span class="params">(ctx context.Context)</span></span> &#123;</span><br><span class="line">    c.remoteAddr = c.rwc.RemoteAddr().String()</span><br><span class="line">	ctx = context.WithValue(ctx, LocalAddrContextKey, c.rwc.LocalAddr())</span><br><span class="line">	...</span><br><span class="line"></span><br><span class="line">	ctx, cancelCtx := context.WithCancel(ctx)</span><br><span class="line">	c.cancelCtx = cancelCtx</span><br><span class="line">	<span class="keyword">defer</span> cancelCtx()</span><br><span class="line"></span><br><span class="line">	...</span><br><span class="line"></span><br><span class="line">	<span class="keyword">for</span> &#123;</span><br><span class="line">		w, err := c.readRequest(ctx)</span><br><span class="line">		</span><br><span class="line">        ...</span><br><span class="line">		</span><br><span class="line">		serverHandler&#123;c.server&#125;.ServeHTTP(w, w.req)</span><br><span class="line">		</span><br><span class="line">		...</span><br><span class="line">	&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>3、读取到请求之后，会再次基于传入的<code>context</code>创建新的<code>cancelCtx</code>,并设置到当前请求对象<code>req</code>上，同时生成的<code>response</code>对象中<code>cancelCtx</code>保存了当前<code>context</code>取消方法。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(c *conn)</span> <span class="title">readRequest</span><span class="params">(ctx context.Context)</span> <span class="params">(w *response, err error)</span></span> &#123;</span><br><span class="line">	</span><br><span class="line">    ...</span><br><span class="line">    </span><br><span class="line">    req, err := readRequest(c.bufr, keepHostHeader)</span><br><span class="line">    </span><br><span class="line">    ...</span><br><span class="line"></span><br><span class="line">	ctx, cancelCtx := context.WithCancel(ctx)</span><br><span class="line">	req.ctx = ctx</span><br><span class="line">	</span><br><span class="line">	...</span><br><span class="line"></span><br><span class="line">	w = &amp;response&#123;</span><br><span class="line">		conn:          c,</span><br><span class="line">		cancelCtx:     cancelCtx,</span><br><span class="line">		req:           req,</span><br><span class="line">		reqBody:       req.Body,</span><br><span class="line">		handlerHeader: <span class="built_in">make</span>(Header),</span><br><span class="line">		contentLength: <span class="number">-1</span>,</span><br><span class="line">		closeNotifyCh: <span class="built_in">make</span>(<span class="keyword">chan</span> <span class="keyword">bool</span>, <span class="number">1</span>),</span><br><span class="line"></span><br><span class="line">		<span class="comment">// We populate these ahead of time so we're not</span></span><br><span class="line">		<span class="comment">// reading from req.Header after their Handler starts</span></span><br><span class="line">		<span class="comment">// and maybe mutates it (Issue 14940)</span></span><br><span class="line">		wants10KeepAlive: req.wantsHttp10KeepAlive(),</span><br><span class="line">		wantsClose:       req.wantsClose(),</span><br><span class="line">	&#125;</span><br><span class="line">	</span><br><span class="line">	...</span><br><span class="line">	<span class="keyword">return</span> w, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这样处理的目的主要有以下几点：</p>
+<ul>
+<li><p>一旦请求超时，即可中断当前请求；</p>
+</li>
+<li><p>在处理构建<code>response</code>过程中如果发生错误，可直接调用<code>response</code>对象的<code>cancelCtx</code>方法结束当前请求；</p>
+</li>
+<li><p>在处理构建<code>response</code>完成之后，调用<code>response</code>对象的<code>cancelCtx</code>方法结束当前请求。</p>
+</li>
+</ul>
+<p>在整个<code>server</code>处理流程中，使用了一条<code>context</code>链贯穿<code>Server</code>、<code>Connection</code>、<code>Request</code>，不仅将上游的信息共享给下游任务，同时实现了上游可发送取消信号取消所有下游任务，而下游任务自行取消不会影响上游任务。</p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p><code>context</code>主要用于父子任务之间的同步取消信号，本质上是一种协程调度的方式。另外在使用<code>context</code>时有两点值得注意：上游任务仅仅使用<code>context</code>通知下游任务不再需要，但不会直接干涉和中断下游任务的执行，由下游任务自行决定后续的处理操作，也就是说<code>context</code>的取消操作是无侵入的；<code>context</code>是线程安全的，因为<code>context</code>本身是不可变的（immutable），因此可以放心地在多个协程中传递使用。</p>
+<h3 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h3><p>1、<a href="https://golang.org/pkg/context/" target="_blank" rel="noopener">Package context</a></p>
+<p>2、<a href="https://blog.golang.org/context" target="_blank" rel="noopener">Go Concurrency Patterns: Context</a></p>
+<p>3、<a href="http://p.agnihotry.com/post/understanding_the_context_package_in_golang/" target="_blank" rel="noopener">Understanding the context package in golang</a></p>
+
+
+                <hr>
+
+                
+
+                <ul class="pager">
+                    
+                    
+                        <li class="next">
+                            <a href="/2019/12/09/Golang-series-channel/" data-toggle="tooltip" data-placement="top" title="Go基础系列：深入理解 channel">Next Post &rarr;</a>
+                        </li>
+                    
+                </ul>
+                <div id="gitalk-container"></div>
+                
+
+                
+
+            </div>
+
+            
+    <!-- Side Catalog Container -->
+        
+            <div class="
+                col-lg-2 col-lg-offset-0
+                visible-lg-block
+                sidebar-container
+                catalog-container">
+                <div class="side-catalog">
+                    <hr class="hidden-sm hidden-xs">
+                    <h5>
+                        <a class="catalog-toggle" href="#">CATALOG</a>
+                    </h5>
+                    <ul class="catalog-body"></ul>
+                </div>
+            </div>
+        
+
+    <!-- Sidebar Container -->
+
+            <div class="
+                col-lg-8 col-lg-offset-2
+                col-md-10 col-md-offset-1
+                sidebar-container">
+
+                <!-- Featured Tags -->
+                
+
+                <!-- Friends Blog -->
+                
+            </div>
+
+        </div>
+    </div>
+</article>
+
+
+
+
+
+
+
+<!-- async load function -->
+<script>
+    function async(u, c) {
+      var d = document, t = 'script',
+          o = d.createElement(t),
+          s = d.getElementsByTagName(t)[0];
+      o.src = u;
+      if (c) { o.addEventListener('load', function (e) { c(null, e); }, false); }
+      s.parentNode.insertBefore(o, s);
+    }
+</script>
+<!-- anchor-js, Doc:http://bryanbraun.github.io/anchorjs/ -->
+<script>
+    async("https://cdn.bootcss.com/anchor-js/1.1.1/anchor.min.js",function(){
+        anchors.options = {
+          visible: 'always',
+          placement: 'right',
+          icon: '#'
+        };
+        anchors.add().remove('.intro-header h1').remove('.subheading').remove('.sidebar-container h5');
+    })
+</script>
+<style>
+    /* place left on bigger screen */
+    @media all and (min-width: 800px) {
+        .anchorjs-link{
+            position: absolute;
+            left: -0.75em;
+            font-size: 1.1em;
+            margin-top : -0.1em;
+        }
+    }
+</style>
+
+
+
+    <!-- Footer -->
+    <!-- Footer -->
+<footer>
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                <ul class="list-inline text-center">
+                
+                
+                
+
+                
+
+                
+
+                
+                    <li>
+                        <a target="_blank"  href="https://github.com/hudingyu">
+                            <span class="fa-stack fa-lg">
+                                <i class="fa fa-circle fa-stack-2x"></i>
+                                <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                            </span>
+                        </a>
+                    </li>
+                
+
+                
+
+                </ul>
+                <p class="copyright text-muted">
+                    Copyright &copy; Turling Blog 2020 
+                    <!-- <br> -->
+                    <!-- Theme by <a href="http://huangxuan.me">Hux</a> 
+                    <span style="display: inline-block; margin: 0 5px;">
+                        <i class="fa fa-heart"></i>
+                    </span> 
+                    Ported by <a href="http://blog.kaijun.rocks">Kaijun</a> |  -->
+                    <!-- <iframe
+                        style="margin-left: 2px; margin-bottom:-5px;"
+                        frameborder="0" scrolling="0" width="91px" height="20px"
+                        src="https://ghbtns.com/github-btn.html?user=kaijun&repo=hexo-theme-huxblog&type=star&count=true" >
+                    </iframe> -->
+                </p>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<!-- jQuery -->
+<script src="/js/jquery.min.js"></script>
+
+<!-- Bootstrap Core JavaScript -->
+<script src="/js/bootstrap.min.js"></script>
+
+<!-- Custom Theme JavaScript -->
+<script src="/js/hux-blog.min.js"></script>
+
+
+<!-- async load function -->
+<script>
+    function async(u, c) {
+      var d = document, t = 'script',
+          o = d.createElement(t),
+          s = d.getElementsByTagName(t)[0];
+      o.src = u;
+      if (c) { o.addEventListener('load', function (e) { c(null, e); }, false); }
+      s.parentNode.insertBefore(o, s);
+    }
+</script>
+
+<!-- 
+     Because of the native support for backtick-style fenced code blocks 
+     right within the Markdown is landed in Github Pages, 
+     From V1.6, There is no need for Highlight.js, 
+     so Huxblog drops it officially.
+
+     - https://github.com/blog/2100-github-pages-now-faster-and-simpler-with-jekyll-3-0  
+     - https://help.github.com/articles/creating-and-highlighting-code-blocks/    
+-->
+<!--
+    <script>
+        async("http://cdn.bootcss.com/highlight.js/8.6/highlight.min.js", function(){
+            hljs.initHighlightingOnLoad();
+        })
+    </script>
+    <link href="http://cdn.bootcss.com/highlight.js/8.6/styles/github.min.css" rel="stylesheet">
+-->
+
+
+<!-- jquery.tagcloud.js -->
+<script>
+    // only load tagcloud.js in tag.html
+    if($('#tag_cloud').length !== 0){
+        async("https://turling.me/js/jquery.tagcloud.js",function(){
+            $.fn.tagcloud.defaults = {
+                //size: {start: 1, end: 1, unit: 'em'},
+                color: {start: '#bbbbee', end: '#0085a1'},
+            };
+            $('#tag_cloud a').tagcloud();
+        })
+    }
+</script>
+
+<script type="text/javascript">
+    const gitalk = new Gitalk({
+        clientID: 'd526317e8c13bd9e1344',
+        clientSecret: '3f2e043a8a04f4babf9e5d0804fd8e14f1b8d75d',
+        repo: 'blog-comments',
+        owner: 'hudingyu',
+        admin: ['hudingyu'],
+        id: md5(location.pathname),      // Ensure uniqueness and length less than 50
+        distractionFreeMode: false  // Facebook-like distraction free mode
+    })
+
+    gitalk.render('gitalk-container')
+  </script>
+
+<!--fastClick.js -->
+<script>
+    async("https://cdn.bootcss.com/fastclick/1.0.6/fastclick.min.js", function(){
+        var $nav = document.querySelector("nav");
+        if($nav) FastClick.attach($nav);
+    })
+</script>
+
+
+<!-- Google Analytics -->
+
+
+
+
+<!-- Baidu Tongji -->
+
+<script>
+    // dynamic User by Hux
+    var _baId = '140353961df3b8b3911818d8a175b712';
+
+    // Originial
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "//hm.baidu.com/hm.js?" + _baId;
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+</script>
+
+
+<!-- Side Catalog -->
+
+<script type="text/javascript">
+    function generateCatalog (selector) {
+        var P = $('div.post-container'),a,n,t,l,i,c;
+        a = P.find('h1,h2,h3,h4,h5,h6');
+        a.each(function () {
+            n = $(this).prop('tagName').toLowerCase();
+            i = "#"+$(this).prop('id');
+            t = $(this).text();
+            c = $('<a href="'+i+'" rel="nofollow">'+t+'</a>');
+            l = $('<li class="'+n+'_nav"></li>').append(c);
+            $(selector).append(l);
+        });
+        return true;    
+    }
+
+    generateCatalog(".catalog-body");
+
+    // toggle side catalog
+    $(".catalog-toggle").click((function(e){
+        e.preventDefault();
+        $('.side-catalog').toggleClass("fold")
+    }))
+
+    /*
+     * Doc: https://github.com/davist11/jQuery-One-Page-Nav
+     * Fork by Hux to support padding
+     */
+    async("/js/jquery.nav.js", function () {
+        $('.catalog-body').onePageNav({
+            currentClass: "active",
+            changeHash: !1,
+            easing: "swing",
+            filter: "",
+            scrollSpeed: 700,
+            scrollOffset: 0,
+            scrollThreshold: .2,
+            begin: null,
+            end: null,
+            scrollChange: null,
+            padding: 80
+        });
+    });
+</script>
+
+
+
+
+
+<!-- Image to hack wechat -->
+<!-- <img src="https://turling.me/img/icon_wechat.png" width="0" height="0" /> -->
+<!-- Migrate from head to bottom, no longer block render and still work -->
+
+</body>
+
+</html>
