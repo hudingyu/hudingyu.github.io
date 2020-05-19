@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<!-- Head tag -->
+<head><meta name="generator" content="Hexo 3.9.0">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="google-site-verification" content="xBT4GhYoi5qRD5tr338pgPM5OWHHIDR6mNg1a3euekI">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content>
+    <meta name="keyword" content>
+    <link rel="shortcut icon" href="/img/favicon.ico">
+
+    <title>
+        
+          浅谈MySQL并发控制：隔离级别、锁与MVCC - Turling的博客 | Turling Blog
+        
+    </title>
+
+    <link rel="canonical" href="https://turling.me/2020/05/19/Mysql-concurrency-control/">
+
+    <!-- Bootstrap Core CSS -->
+    <link rel="stylesheet" href="/css/bootstrap.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/hux-blog.min.css">
+
+    <!-- Pygments Highlight CSS -->
+    <link rel="stylesheet" href="/css/highlight.css">
+
+    <!-- Custom Fonts -->
+    <!-- <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css" rel="stylesheet" type="text/css"> -->
+    <!-- Hux change font-awesome CDN to qiniu -->
+    <link href="https://cdn.staticfile.org/font-awesome/4.5.0/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+
+
+    <!-- Hux Delete, sad but pending in China
+    <link href='http://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+    <link href='http://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800' rel='stylesheet' type='text/
+    css'>
+    -->
+
+
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+        <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+        <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+    
+    <!-- ga & ba script hoook -->
+    <script></script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.css">
+    <script src="https://cdn.jsdelivr.net/npm/gitalk@1/dist/gitalk.min.js"></script>
+    <script src="https://cdn.bootcss.com/blueimp-md5/2.11.0/js/md5.min.js"></script>
+</head>
+
+
+<!-- hack iOS CSS :active style -->
+<body ontouchstart="">
+
+    <!-- Navigation -->
+<nav class="navbar navbar-default navbar-custom navbar-fixed-top">
+    <div class="container-fluid">
+        <!-- Brand and toggle get grouped for better mobile display -->
+        <div class="navbar-header page-scroll">
+            <button type="button" class="navbar-toggle">
+                <span class="sr-only">Toggle navigation</span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="/">Turling Blog</a>
+        </div>
+
+        <!-- Collect the nav links, forms, and other content for toggling -->
+        <!-- Known Issue, found by Hux:
+            <nav>'s height woule be hold on by its content.
+            so, when navbar scale out, the <nav> will cover tags.
+            also mask any touch event of tags, unfortunately.
+        -->
+        <div id="huxblog_navbar">
+            <div class="navbar-collapse">
+                <ul class="nav navbar-nav navbar-right">
+                    <li>
+                        <a href="/">Home</a>
+                    </li>
+
+                    
+
+                        
+                    
+
+                        
+                        <li>
+                            <a href="/archives/">Archives</a>
+                        </li>
+                        
+                    
+
+                        
+                        <li>
+                            <a href="/about/">About</a>
+                        </li>
+                        
+                    
+
+                        
+                        <li>
+                            <a href="/tags/">Tags</a>
+                        </li>
+                        
+                    
+                    
+                </ul>
+            </div>
+        </div>
+        <!-- /.navbar-collapse -->
+    </div>
+    <!-- /.container -->
+</nav>
+<script>
+    // Drop Bootstarp low-performance Navbar
+    // Use customize navbar with high-quality material design animation
+    // in high-perf jank-free CSS3 implementation
+    var $body   = document.body;
+    var $toggle = document.querySelector('.navbar-toggle');
+    var $navbar = document.querySelector('#huxblog_navbar');
+    var $collapse = document.querySelector('.navbar-collapse');
+
+    $toggle.addEventListener('click', handleMagic)
+    function handleMagic(e){
+        if ($navbar.className.indexOf('in') > 0) {
+        // CLOSE
+            $navbar.className = " ";
+            // wait until animation end.
+            setTimeout(function(){
+                // prevent frequently toggle
+                if($navbar.className.indexOf('in') < 0) {
+                    $collapse.style.height = "0px"
+                }
+            },400)
+        }else{
+        // OPEN
+            $collapse.style.height = "auto"
+            $navbar.className += " in";
+        }
+    }
+</script>
+
+
+    <!-- Main Content -->
+    
+<!-- Image to hack wechat -->
+<!-- <img src="https://turling.me/img/icon_wechat.png" width="0" height="0"> -->
+<!-- <img src="{{ site.baseurl }}/{% if page.header-img %}{{ page.header-img }}{% else %}{{ site.header-img }}{% endif %}" width="0" height="0"> -->
+
+<!-- Post Header -->
+<style type="text/css">
+    header.intro-header{
+        background-image: url('green-leaf.jpg')
+    }
+</style>
+<header class="intro-header" >
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                <div class="post-heading">
+                    <div class="tags">
+                        
+                          <a class="tag" href="/tags/#MySQL" title="MySQL">MySQL</a>
+                        
+                    </div>
+                    <h1>浅谈MySQL并发控制：隔离级别、锁与MVCC</h1>
+                    <h2 class="subheading"></h2>
+                    <span class="meta">
+                        Posted by Turling on
+                        2020-05-19
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- Post Content -->
+<article>
+    <div class="container">
+        <div class="row">
+
+    <!-- Post Container -->
+            <div class="
+                col-lg-8 col-lg-offset-2
+                col-md-10 col-md-offset-1
+                post-container">
+
+                <h3 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h3><p>如果数据库中的事务都是串行执行的，这种方式可以保障事务的执行不会出现异常和错误，但带来的问题是串行执行会带来性能瓶颈；而事务并发执行，如果不加以控制则会引发诸多问题，包括死锁、更新丢失等等。这就需要我们在性能和安全之间做出合理的权衡，使用适当的并发控制机制保障并发事务的执行。</p>
+<h3 id="并发事务带来的问题"><a href="#并发事务带来的问题" class="headerlink" title="并发事务带来的问题"></a>并发事务带来的问题</h3><p>首先我们先来了解一下并发事务会带来哪些问题。并发事务访问相同记录大致可归纳为以下3种情况：</p>
+<ul>
+<li><strong>读-读</strong>：即并发事务相继读取同一记录；</li>
+<li><strong>写-写</strong>：即并发事务相继对同一记录做出修改；</li>
+<li><strong>写-读</strong>或<strong>读-写</strong>：即两个并发事务对同一记录分别进行读操作和写操作。</li>
+</ul>
+<h5 id="读-读"><a href="#读-读" class="headerlink" title="读-读"></a>读-读</h5><p>因为读取记录并不会对记录造成任何影响，所以同个事务并发读取同一记录也就不存在任何安全问题，所以允许这种操作。</p>
+<h5 id="写-写"><a href="#写-写" class="headerlink" title="写-写"></a>写-写</h5><p>如果允许并发事务都读取同一记录，并相继基于旧值对这一记录做出修改，那么就会出现前一个事务所做的修改被后面事务的修改覆盖，即出现<strong>提交覆盖</strong>的问题。</p>
+<p>另外一种情况，并发事务相继对同一记录做出修改，其中一个事务提交之后之后另一个事务发生回滚，这样就会出现已提交的修改因为回滚而丢失的问题，即<strong>回滚覆盖</strong>问题。</p>
+<p>这两种问题都造成丢失更新，其中回滚覆盖称为<strong>第一类丢失更新</strong>问题，提交覆盖称为<strong>第二类丢失更新</strong>问题。</p>
+<h5 id="写-读或读-写"><a href="#写-读或读-写" class="headerlink" title="写-读或读-写"></a><strong>写-读</strong>或<strong>读-写</strong></h5><p>这种情况较为复杂，也最容易出现问题。</p>
+<p>如果一个事务读取了另一个事务尚未提交的修改记录，那么就出现了<strong>脏读</strong>的问题；</p>
+<p>如果我们加以控制使得一个事务只能读取其他已提交事务的修改的数据，那么这个事务在另一事物提交修改前后读取到的数据是不一样的，这就意味着发生了<strong>不可重复读</strong>；</p>
+<p>如果一个事务根据一些条件查询到一些记录，之后另一事物向表中插入了一些记录，原先的事务以相同条件再次查询时发现得到的结果跟第一次查询得到的结果不一致，这就意味着发生了<strong>幻读</strong>。</p>
+<h3 id="事务的隔离级别"><a href="#事务的隔离级别" class="headerlink" title="事务的隔离级别"></a>事务的隔离级别</h3><p>对于以上提到的并发事务执行过程中可能出现的问题，其严重性也是不一样的，我们可以按照问题的严重程度排个序：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">丢失更新 &gt; 脏读 &gt; 不可重复读 &gt; 幻读</span><br></pre></td></tr></table></figure>
+<p>因此如果我们可以容忍一些严重程度较轻的问题，我们就能获取一些性能上的提升。于是便有了事务的四种隔离级别：</p>
+<ul>
+<li>读未提交（<code>Read Uncommitted</code>）：允许读取未提交的记录，会发生脏读、不可重复读、幻读；</li>
+<li>读已提交（<code>Read Committed</code>）：只允许读物已提交的记录，不会发生脏读，但会出现重复读、幻读；</li>
+<li>可重复读（<code>Repeatable Read</code>）：不会发生脏读和不可重复读的问题，但会发生幻读问题；但<code>MySQL</code>在此隔离级别下利用<strong>MVCC</strong>或者<strong>间隙锁</strong>可以禁止幻读问题的发生；</li>
+<li>可串行化（<code>Serializable</code>）：即事务串行执行，以上各种问题自然也就都不会发生。</li>
+</ul>
+<p>值得注意的是以上四种隔离级别都不会出现回滚覆盖的问题，但是提交覆盖的问题对于<code>MySQL</code>来说，在<code>Read Uncommitted</code>、<code>Read Committed</code>以及<code>Repeatable Read</code>这三种隔离级别下都会发生（标准的<code>Repeatable Read</code>隔离级别不允许出现提交覆盖的问题），需要额外加锁来避免此问题。</p>
+<h3 id="隔离级别的实现"><a href="#隔离级别的实现" class="headerlink" title="隔离级别的实现"></a>隔离级别的实现</h3><p><code>SQL</code>规范定义了以上四种隔离级别，但是并没有给出如何实现四种隔离级别，因此不同数据库的实现方式和使用方式也并不相同。而<code>SQL</code>隔离级别的标准是依据基于锁的实现方式来制定的，因为有必要先了解一下传统的基于锁的隔离级别是如何实现的。</p>
+<h4 id="传统隔离级别的实现"><a href="#传统隔离级别的实现" class="headerlink" title="传统隔离级别的实现"></a>传统隔离级别的实现</h4><p>既然说到传统的隔离级别是基于锁实现的，我们先来了解一下锁。</p>
+<h5 id="锁"><a href="#锁" class="headerlink" title="锁"></a>锁</h5><p>传统的锁有两种：</p>
+<ul>
+<li>共享锁（<code>Shared Locks</code>）：简称<code>S锁</code>，事务对一条记录进行读操作时，需要先获取该记录的共享锁。</li>
+<li>排他锁（<code>Exclusive Locks</code>）：简称<code>X锁</code>，事务对一条记录进行写操作时，需要先获取该记录的排他锁。</li>
+</ul>
+<p>需要注意的是，加了共享锁的记录，其他事务也可以获得该记录的共享锁，但是无法获取该记录的排他锁，即<code>S锁</code>和<code>S锁</code>是兼容的，<code>S锁</code>和<code>X锁</code>是不兼容的；而加了排他锁的记录，其他事务既无法获取该记录的共享锁也无法获取排他锁，即<code>X锁</code>和<code>X锁</code>也是不兼容的。</p>
+<p>另外，刚刚说到事务对一条记录进行读操作时，需要先获取该记录的<code>S锁</code>，但有时事务在读取记录时需要阻止其他事务访问该记录，这时就需要获取该记录的<code>X锁</code>。以<code>MySQL</code>为例，有以下两种锁定读的方式：</p>
+<ul>
+<li>读取时对记录加<code>S锁</code>：</li>
+</ul>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> ... <span class="keyword">LOCK</span> <span class="keyword">IN</span> <span class="keyword">SHARE</span> <span class="keyword">MODE</span>;</span><br></pre></td></tr></table></figure>
+<p>如果事务执行了该语句，则会在读取的记录上加<code>S锁</code>，这样就允许其他事务也能获取到该记录的<code>S锁</code>；而如果其他事务需要获取该记录的<code>X锁</code>，那么就需要等待当前事务提交后释放掉<code>S锁</code>。</p>
+<ul>
+<li>读取时对记录加<code>X锁</code>：</li>
+</ul>
+<figure class="highlight n1ql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> ... <span class="keyword">FOR</span> <span class="keyword">UPDATE</span>;</span><br></pre></td></tr></table></figure>
+<p>如果事务执行了该语句，则会在读取的记录上加<code>X锁</code>，这样其他事务想要说去该记录的<code>S锁</code>或<code>X锁</code>，那么需要等待当前事务提交后释放掉<code>X锁</code>。</p>
+<p>对于锁的粒度而言，锁又可以分为两种：</p>
+<ul>
+<li>行锁：只锁住某一行记录，其他行的记录不受影响。</li>
+<li>表锁：锁住整个表，所有对于该表的操作都会受影响。</li>
+</ul>
+<h5 id="基于锁实现隔离级别"><a href="#基于锁实现隔离级别" class="headerlink" title="基于锁实现隔离级别"></a>基于锁实现隔离级别</h5><p>在基于锁的实现方式下，四种隔离级别的区别就在于加锁方式的区别：</p>
+<ul>
+<li><strong>读未提交</strong>：读操作不加锁，读读，读写，写读并行；写操作加<code>X锁</code>且直到事务提交后才释放。</li>
+<li><strong>读已提交</strong>：读操作加<code>S锁</code>，写操作加<code>X锁</code>且直到事务提交后才释放；读操作不会阻塞其他事务读或写，写操作会阻塞其他事务写和读，因此可以防止脏读问题。</li>
+<li><strong>可重复读</strong>：读操作加<code>S锁</code>且直到事务提交后才释放，写操作加<code>X锁</code>且直到事务提交后才释放；读操作不会阻塞其他事务读但会阻塞其他事务写，写操作会阻塞其他事务读和写，因此可以防止脏读、不可重复读。</li>
+<li><strong>串行化</strong>：读操作和写操作都加<code>X锁</code>且直到事务提交后才释放，粒度为表锁，也就是严格串行。</li>
+</ul>
+<p>这里面有一些细节值得注意：</p>
+<ul>
+<li>如果锁获取之后直到事务提交后才释放，这种锁称为<strong>长锁</strong>；如果锁在操作完成之后就被释放，这种锁称为<strong>短锁</strong>。例如，在读已提交隔离级别下，读操作所加<code>S锁</code>为短锁，写操作所加<code>X锁</code>为长锁。</li>
+<li>对于可重复读和串行化隔离级别，读操作所加<code>S锁</code>和写操作所加<code>X锁</code>均为长锁，即事务获取锁之后直到事务提交后才能释放，这种把获取锁和释放锁分为两个不同的阶段的协议称为<strong>两阶段锁</strong>协议（<code>2-phase locking</code>）。两阶段锁协议规定在加锁阶段，一个事务可以获得锁但是不能释放锁；而在解锁阶段事务只可以释放锁，并不能获得新的锁。两阶段锁协议能够保证事务串行化执行，解决事务并发问题，但也会导致死锁发生的概率大大提升。</li>
+</ul>
+<h4 id="MySQL隔离级别的实现"><a href="#MySQL隔离级别的实现" class="headerlink" title="MySQL隔离级别的实现"></a>MySQL隔离级别的实现</h4><p>不同数据库对于<code>SQL</code>标准中规定的隔离级别支持是不一样的，数据库引擎实现隔离级别的方式虽然都在尽可能地贴近标准的隔离级别规范，但和标准的预期还是有些不一样的地方。</p>
+<p><code>MySQL</code>（<code>InnoDB</code>）支持的4种隔离级别，与标准的各级隔离级别允许出现的问题有些出入，比如<code>MySQL</code>在可重复读隔离级别下可以防止幻读的问题出现，但也会出现提交覆盖的问题。</p>
+<p>相对于传统隔离级别基于锁的实现方式，<code>MySQL</code> 是通过<code>MVCC</code>（多版本并发控制）来实现读-写并发控制，又是通过两阶段锁来实现写-写并发控制的。<code>MVCC</code>是一种无锁方案，用以解决事务<strong>读-写</strong>并发的问题，能够极大提升<strong>读-写</strong>并发操作的性能。</p>
+<h5 id="MVCC的实现原理"><a href="#MVCC的实现原理" class="headerlink" title="MVCC的实现原理"></a>MVCC的实现原理</h5><p>为了方便描述，首先我们创建一个表<code>book</code>，就三个字段，分别是主键<code>book_id</code>, 名称<code>book_name</code>, 库存<code>stock</code>。然后向表中插入一些数据：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">INSERT</span> <span class="keyword">INTO</span> book <span class="keyword">VALUES</span>(<span class="number">1</span>, <span class="string">'数据结构'</span>, <span class="number">100</span>);</span><br><span class="line"><span class="keyword">INSERT</span> <span class="keyword">INTO</span> book <span class="keyword">VALUES</span>(<span class="number">2</span>, <span class="string">'C++指南'</span>, <span class="number">100</span>);</span><br><span class="line"><span class="keyword">INSERT</span> <span class="keyword">INTO</span> book <span class="keyword">VALUES</span>(<span class="number">3</span>, <span class="string">'精通Java'</span>, <span class="number">100</span>);</span><br></pre></td></tr></table></figure>
+<h6 id="版本链"><a href="#版本链" class="headerlink" title="版本链"></a>版本链</h6><p>对于使用<code>InnoDB</code>存储引擎的表，其聚簇索引记录中包含了两个重要的隐藏列：</p>
+<ul>
+<li>事务ID（<code>DB_TRX_ID</code>）：每当事务对聚簇索引中的记录进行修改时，都会把当前事务的事务id记录到<code>DB_TRX_ID</code>中。</li>
+<li>回滚指针（<code>DB_ROLL_PTR</code>）：每当事务对聚簇索引中的记录进行修改时，都会把该记录的旧版本记录到<code>undo</code>日志中，通过<code>DB_ROLL_PTR</code>这个指针可以用来获取该记录旧版本的信息。</li>
+</ul>
+<p>如果在一个事务中多次对记录进行修改，则每次修改都会生成<code>undo</code>日志，并且这些<code>undo</code>日志通过<code>DB_ROLL_PTR</code>指针串联成一个版本链，版本链的头结点是该记录最新的值，尾结点是事务开始时的初始值。</p>
+<p>例如，我们在表<code>book</code>中做以下修改：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">BEGIN</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">UPDATE</span> book <span class="keyword">SET</span> stock = <span class="number">200</span> <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">1</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">UPDATE</span> book <span class="keyword">SET</span> stock = <span class="number">300</span> <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">1</span>;</span><br></pre></td></tr></table></figure>
+<p>那么<code>id=1</code>的记录此时的版本链就如下图所示：</p>
+<p><img src="mysql-concurrency-control-1.png" alt></p>
+<h6 id="ReadView"><a href="#ReadView" class="headerlink" title="ReadView"></a>ReadView</h6><p>对于使用<code>Read Uncommitted</code>隔离级别的事务来说，只需要读取版本链上最新版本的记录即可；对于使用<code>Serializable</code>隔离级别的事务来说，<code>InnoDB</code>使用加锁的方式来访问记录。而<code>Read Committed</code>和<code>Repeatable Read</code>隔离级别来说，都需要读取已经提交的事务所修改的记录，也就是说如果版本链中某个版本的修改没有提交，那么该版本的记录时不能被读取的。所以需要确定在<code>Read Committed</code>和<code>Repeatable Read</code>隔离级别下，版本链中哪个版本是能被当前事务读取的。于是<code>ReadView</code>的概念被提出以解决这个问题。</p>
+<p><code>ReadView</code>相当于某个时刻表记录的一个快照，在这个快照中我们能获取到与当前记录相关的事务中，哪些事务是已提交的<strong>稳定事务</strong>，哪些是<strong>正在活跃的事务</strong>，哪些是<strong>生成快照之后才开启的事务</strong>。由此我们就能根据<strong>可见性比较算法</strong>判断出版本链中能被读取的最新版本记录。</p>
+<p><strong>可见性比较算法</strong>是基于事务ID的比较算法。首先我们需要知道的一个事实是：事务<code>id</code>是递增分配的。从<code>ReadView</code>中我们能获取到生成快照时刻系统中活跃的事务中最小和最大的事务<code>id</code>（最大的事务<code>id</code>实际上是系统中将要分配给下一个事务的<code>id</code>值），这样我们就得到了一个活跃事务<code>id</code>的范围，我们可称之为<code>ACTIVE_TRX_ID_RANGE</code>。那么小于这个范围的事务id对应的事务都是已提交的稳定事务，大于这个范围的事务都是在快照生成之后才开启的事务，而在<code>ACTIVE_TRX_ID_RANGE</code>范围内的事务中除了正在活跃的事务，也都是已提交的稳定事务。</p>
+<p>有了以上信息之后，我们顺着版本链从头结点开始查找最新的可被读取的版本记录：</p>
+<p>1、首先判断版本记录的<code>DB_TRX_ID</code>字段与生成<code>ReadView</code>的事务对应的事务ID是否相等。如果相等，那就说明该版本的记录是在当前事务中生成的，自然也就能够被当前事务读取；否则进行第2步。</p>
+<p>2、如果版本记录的<code>DB_TRX_ID</code>字段小于范围<code>ACTIVE_TRX_ID_RANGE</code>，表明该版本记录是已提交事务修改的记录，即对当前事务可见；否则进行下一步。</p>
+<p>3、如果版本记录的<code>DB_TRX_ID</code>字段位于范围<code>ACTIVE_TRX_ID_RANGE</code>内，如果该事务ID对应的不是活跃事务，表明该版本记录是已提交事务修改的记录，即对当前事务可见；如果该事务ID对应的是活跃事务，那么对当前事务不可见，则读取版本链中下一个版本记录，重复以上步骤，直到找到对当前事务可见的版本。</p>
+<p>如果某个版本记录经过以上步骤判断确定其对当前事务可见，则查询结果返回此版本记录；否则读取下一个版本记录继续按照上述步骤进行判断，直到版本链的尾结点。如果遍历完版本链没有找到对当前事务可见的版本，则查询结果为空。</p>
+<p>在<code>MySQL</code>中，<code>Read Committed</code>和<code>Repeatable Read</code>隔离级别下的区别就是它们生成<code>ReadView</code>的时机不同。</p>
+<h5 id="MVCC实现不同隔离级别"><a href="#MVCC实现不同隔离级别" class="headerlink" title="MVCC实现不同隔离级别"></a>MVCC实现不同隔离级别</h5><p>之前说到<code>ReadView</code>的机制只在<code>Read Committed</code>和<code>Repeatable Read</code>隔离级别下生效，所以只有这两种隔离级别才有<code>MVCC</code>。<br>在<code>Read Committed</code>隔离级别下，每次读取数据时都会生成<code>ReadView</code>；而在<code>Repeatable Read</code>隔离级别下只会在事务首次读取数据时生成<code>ReadView</code>，之后的读操作都会沿用此<code>ReadView</code>。</p>
+<p>下面我们通过例子来看看<code>Read Committed</code>和<code>Repeatable Read</code>隔离级别下<code>MVCC</code>的不同表现。我们继续以表<code>book</code>为例进行演示。</p>
+<h6 id="Read-Committed隔离级别分析"><a href="#Read-Committed隔离级别分析" class="headerlink" title="Read Committed隔离级别分析"></a>Read Committed隔离级别分析</h6><p>假设在<code>Read Committed</code>隔离级别下，有如下事务在执行，事务<code>id</code>为10：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">BEGIN</span>; // 开启Transaction 10</span><br><span class="line"></span><br><span class="line"><span class="keyword">UPDATE</span> book <span class="keyword">SET</span> stock = <span class="number">200</span> <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">UPDATE</span> book <span class="keyword">SET</span> stock = <span class="number">300</span> <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>;</span><br></pre></td></tr></table></figure>
+<p>此时该事务尚未提交，<code>id</code>为2的记录版本链如下图所示：</p>
+<p><img src="mysql-concurrency-control-2.png" alt></p>
+<p>然后我们开启一个事务对<code>id</code>为2的记录进行查询：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">BEGIN</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">SELECT</span> * <span class="keyword">FROM</span> book <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>;</span><br></pre></td></tr></table></figure>
+<p>当执行<code>SELECT</code>语句时会生成一个<code>ReadView</code>，该<code>ReadView</code>中的<code>ACTIVE_TRX_ID_RANGE</code>为<code>[10, 11)</code>，当前事务ID<code>creator_trx_id</code>为<code>0</code>（因为事务中当执行写操作时才会分配一个单独的事务<code>id</code>，否则事务<code>id</code>为<code>0</code>）。按照我们之前所述<code>ReadView</code>的工作原理，我们查询到的版本记录为</p>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="code">+----------+</span>-----------<span class="code">+-------+</span></span><br><span class="line">| book<span class="emphasis">_id  | book_</span>name | stock |</span><br><span class="line"><span class="code">+----------+</span>-----------<span class="code">+-------+</span></span><br><span class="line">| 2        | C++指南    |  100  |</span><br><span class="line"><span class="code">+----------+</span>-----------<span class="code">+-------+</span></span><br></pre></td></tr></table></figure>
+<p>然后我们将事务<code>id</code>为10的事务提交：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">BEGIN</span>; // 开启Transaction 10</span><br><span class="line"></span><br><span class="line"><span class="keyword">UPDATE</span> book <span class="keyword">SET</span> stock = <span class="number">200</span> <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">UPDATE</span> book <span class="keyword">SET</span> stock = <span class="number">300</span> <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">COMMIT</span>;</span><br></pre></td></tr></table></figure>
+<p>同时开启执行另一事务<code>id</code>为<code>11</code>的事务，但不提交：<br><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">BEGIN</span>; // 开启Transaction 11</span><br><span class="line"></span><br><span class="line"><span class="keyword">UPDATE</span> book <span class="keyword">SET</span> stock = <span class="number">400</span> <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>;</span><br></pre></td></tr></table></figure></p>
+<p>此时<code>id</code>为2的记录版本链如下图所示：</p>
+<p><img src="mysql-concurrency-control-3.png" alt></p>
+<p>然后我们回到刚才的查询事务中再次查询<code>id</code>为2的记录：<br><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">BEGIN</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">SELECT</span> * <span class="keyword">FROM</span> book <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>; // 此时Transaction 10 未提交</span><br><span class="line"></span><br><span class="line"><span class="keyword">SELECT</span> * <span class="keyword">FROM</span> book <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>; // 此时Transaction 10 已提交</span><br></pre></td></tr></table></figure></p>
+<p>当第二次执行<code>SELECT</code>语句时会再次生成一个<code>ReadView</code>，该<code>ReadView</code>中的<code>ACTIVE_TRX_ID_RANGE</code>为<code>[11, 12)</code>，当前事务ID<code>creator_trx_id</code>依然为<code>0</code>。按照<code>ReadView</code>的工作原理进行分析，我们查询到的版本记录为<br><figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="code">+----------+</span>-----------<span class="code">+-------+</span></span><br><span class="line">| book<span class="emphasis">_id  | book_</span>name | stock |</span><br><span class="line"><span class="code">+----------+</span>-----------<span class="code">+-------+</span></span><br><span class="line">| 2        | C++指南    | 300   |</span><br><span class="line"><span class="code">+----------+</span>-----------<span class="code">+-------+</span></span><br></pre></td></tr></table></figure></p>
+<p>从上述分析可以发现，因为每次执行查询语句都会生成新的<code>ReadView</code>，所以在<code>Read Committed</code>隔离级别下的事务读取到的是查询时刻表中已提交事务修改之后的数据。</p>
+<h6 id="Repeatable-Read隔离级别分析"><a href="#Repeatable-Read隔离级别分析" class="headerlink" title="Repeatable Read隔离级别分析"></a>Repeatable Read隔离级别分析</h6><p>我们在<code>Repeatable Read</code>隔离级别下重复上面的事务操作：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">BEGIN</span>; // 开启Transaction 20</span><br><span class="line"></span><br><span class="line"><span class="keyword">UPDATE</span> book <span class="keyword">SET</span> stock = <span class="number">200</span> <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">UPDATE</span> book <span class="keyword">SET</span> stock = <span class="number">300</span> <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>;</span><br></pre></td></tr></table></figure>
+<p>此时该事务尚未提交，然后我们开启一个事务对<code>id</code>为2的记录进行查询：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">BEGIN</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">SELECT</span> * <span class="keyword">FROM</span> book <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>;</span><br></pre></td></tr></table></figure>
+<p>当事务第一次执行<code>SELECT</code>语句时会生成一个<code>ReadView</code>，该<code>ReadView</code>中的<code>ACTIVE_TRX_ID_RANGE</code>为<code>[10, 11)</code>，当前事务ID<code>creator_trx_id</code>为<code>0</code>。根据<code>ReadView</code>的工作原理，我们查询到的版本记录为</p>
+<figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="code">+----------+</span>-----------<span class="code">+-------+</span></span><br><span class="line">| book<span class="emphasis">_id  | book_</span>name | stock |</span><br><span class="line"><span class="code">+----------+</span>-----------<span class="code">+-------+</span></span><br><span class="line">| 2        | C++指南    |  100  |</span><br><span class="line"><span class="code">+----------+</span>-----------<span class="code">+-------+</span></span><br></pre></td></tr></table></figure>
+<p>然后我们将事务<code>id</code>为20的事务提交：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">BEGIN</span>; // 开启Transaction 20</span><br><span class="line"></span><br><span class="line"><span class="keyword">UPDATE</span> book <span class="keyword">SET</span> stock = <span class="number">200</span> <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">UPDATE</span> book <span class="keyword">SET</span> stock = <span class="number">300</span> <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">COMMIT</span>;</span><br></pre></td></tr></table></figure>
+<p>同时开启执行另一事务<code>id</code>为21的事务，但不提交：<br><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">BEGIN</span>; // 开启Transaction 21</span><br><span class="line"></span><br><span class="line"><span class="keyword">UPDATE</span> book <span class="keyword">SET</span> stock = <span class="number">400</span> <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>;</span><br></pre></td></tr></table></figure></p>
+<p>然后我们回到刚才的查询事务中再次查询<code>id</code>为2的记录：<br><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">BEGIN</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">SELECT</span> * <span class="keyword">FROM</span> book <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>; // 此时Transaction 10 未提交</span><br><span class="line"></span><br><span class="line"><span class="keyword">SELECT</span> * <span class="keyword">FROM</span> book <span class="keyword">WHERE</span> <span class="keyword">id</span> = <span class="number">2</span>; // 此时Transaction 10 已提交</span><br></pre></td></tr></table></figure></p>
+<p>当第二次执行<code>SELECT</code>语句时不会生成新的<code>ReadView</code>，依然会使用第一次查询时生成<code>ReadView</code>。因此我们查询到的版本记录跟第一次查询到的结果是一样的：<br><figure class="highlight asciidoc"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="code">+----------+</span>-----------<span class="code">+-------+</span></span><br><span class="line">| book<span class="emphasis">_id  | book_</span>name | stock |</span><br><span class="line"><span class="code">+----------+</span>-----------<span class="code">+-------+</span></span><br><span class="line">| 2        | C++指南    |  100  |</span><br><span class="line"><span class="code">+----------+</span>-----------<span class="code">+-------+</span></span><br></pre></td></tr></table></figure></p>
+<p>从上述分析可以发现，因为在<code>Repeatable Read</code>隔离级别下的事务只会在第一次执行查询时生成<code>ReadView</code>，该事务中后续的查询操作都会沿用这个<code>ReadView</code>，因此此隔离级别下一个事务中多次执行同样的查询，其结果都是一样的，这样就实现了可重复读。</p>
+<h5 id="快照读和当前读"><a href="#快照读和当前读" class="headerlink" title="快照读和当前读"></a>快照读和当前读</h5><h6 id="快照读"><a href="#快照读" class="headerlink" title="快照读"></a>快照读</h6><p>在<code>Read Committed</code>和<code>Repeatable Read</code>隔离级别下，普通的<code>SELECT</code>查询都是读取<code>MVCC</code>版本链中的一个版本，相当于读取一个快照，因此称为<strong>快照读</strong>。这种读取方式不会加锁，因此读操作时非阻塞的，因此也叫<strong>非阻塞读</strong>。</p>
+<p>在标准的<code>Repeatable Read</code>隔离级别下读操作会加<code>S锁</code>，直到事务结束，因此可以阻止其他事务的写操作；但在<code>MySQL</code>的<code>Repeatable Read</code>隔离级别下读操作没有加锁，不会阻止其他事务对相同记录的写操作，因此在后续进行写操作时就有可能写入基于版本链中的旧数据计算得到的结果，这就导致了提交覆盖的问题。想要避免此问题，就需要另外加锁来实现。</p>
+<h6 id="当前读"><a href="#当前读" class="headerlink" title="当前读"></a>当前读</h6><p>之前提到<code>MySQL</code>有两种锁定读的方式：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> ... <span class="keyword">LOCK</span> <span class="keyword">IN</span> <span class="keyword">SHARE</span> <span class="keyword">MODE</span>; // 读取时对记录加S锁，直到事务结束</span><br><span class="line"></span><br><span class="line"><span class="keyword">SELECT</span> ... <span class="keyword">FOR</span> <span class="keyword">UPDATE</span>; // 读取时对记录加X锁，直到事务结束</span><br></pre></td></tr></table></figure>
+<p>这种读取方式读取的是记录的当前最新版本，称为<strong>当前读</strong>。另外对于<code>INSERT</code>、<code>DELETE</code>、<code>UPDATE</code>操作，也是需要先读取记录，获取记录的<code>X锁</code>，这个过程也是一个当前读。由于需要对记录进行加锁，会阻塞其他事务的写操作，因此也叫<strong>加锁读</strong>或<strong>阻塞读</strong>。</p>
+<p>当前读不仅会对当前记录加<strong>行记录锁</strong>，还会对查询范围空间的数据加<strong>间隙锁</strong>（<code>GAP LOCK</code>），因此可以阻止幻读问题的出现。</p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>本文介绍了事务的多种并发问题，以及用以避免不同程度问题的隔离级别，并较为详细描述了传统隔离级别的实现方式以及<code>MySQL</code>隔离级别的实现方式。但数据库的并发机制较为复杂，本文也只是做了大致的描述和介绍，很多细节还需要读者自己查询相关资料进行更细致的了解。</p>
+<h3 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h3><p>1、<a href="https://segmentfault.com/a/1190000012650596" target="_blank" rel="noopener">MySQL-InnoDB-MVCC多版本并发控制</a></p>
+<p>2、<a href="https://juejin.im/book/5bffcbc9f265da614b11b731" target="_blank" rel="noopener">MySQL 是怎样运行的：从根儿上理解 MySQL</a></p>
+
+
+                <hr>
+
+                
+
+                <ul class="pager">
+                    
+                    
+                        <li class="next">
+                            <a href="/2020/02/22/Golang-series-context/" data-toggle="tooltip" data-placement="top" title="Go基础系列：深入理解 context">Next Post &rarr;</a>
+                        </li>
+                    
+                </ul>
+                <div id="gitalk-container"></div>
+                
+
+                
+
+            </div>
+
+            
+    <!-- Side Catalog Container -->
+        
+            <div class="
+                col-lg-2 col-lg-offset-0
+                visible-lg-block
+                sidebar-container
+                catalog-container">
+                <div class="side-catalog">
+                    <hr class="hidden-sm hidden-xs">
+                    <h5>
+                        <a class="catalog-toggle" href="#">CATALOG</a>
+                    </h5>
+                    <ul class="catalog-body"></ul>
+                </div>
+            </div>
+        
+
+    <!-- Sidebar Container -->
+
+            <div class="
+                col-lg-8 col-lg-offset-2
+                col-md-10 col-md-offset-1
+                sidebar-container">
+
+                <!-- Featured Tags -->
+                
+
+                <!-- Friends Blog -->
+                
+            </div>
+
+        </div>
+    </div>
+</article>
+
+
+
+
+
+
+
+<!-- async load function -->
+<script>
+    function async(u, c) {
+      var d = document, t = 'script',
+          o = d.createElement(t),
+          s = d.getElementsByTagName(t)[0];
+      o.src = u;
+      if (c) { o.addEventListener('load', function (e) { c(null, e); }, false); }
+      s.parentNode.insertBefore(o, s);
+    }
+</script>
+<!-- anchor-js, Doc:http://bryanbraun.github.io/anchorjs/ -->
+<script>
+    async("https://cdn.bootcss.com/anchor-js/1.1.1/anchor.min.js",function(){
+        anchors.options = {
+          visible: 'always',
+          placement: 'right',
+          icon: '#'
+        };
+        anchors.add().remove('.intro-header h1').remove('.subheading').remove('.sidebar-container h5');
+    })
+</script>
+<style>
+    /* place left on bigger screen */
+    @media all and (min-width: 800px) {
+        .anchorjs-link{
+            position: absolute;
+            left: -0.75em;
+            font-size: 1.1em;
+            margin-top : -0.1em;
+        }
+    }
+</style>
+
+
+
+    <!-- Footer -->
+    <!-- Footer -->
+<footer>
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+                <ul class="list-inline text-center">
+                
+                
+                
+
+                
+
+                
+
+                
+                    <li>
+                        <a target="_blank"  href="https://github.com/hudingyu">
+                            <span class="fa-stack fa-lg">
+                                <i class="fa fa-circle fa-stack-2x"></i>
+                                <i class="fa fa-github fa-stack-1x fa-inverse"></i>
+                            </span>
+                        </a>
+                    </li>
+                
+
+                
+
+                </ul>
+                <p class="copyright text-muted">
+                    Copyright &copy; Turling Blog 2020 
+                    <!-- <br> -->
+                    <!-- Theme by <a href="http://huangxuan.me">Hux</a> 
+                    <span style="display: inline-block; margin: 0 5px;">
+                        <i class="fa fa-heart"></i>
+                    </span> 
+                    Ported by <a href="http://blog.kaijun.rocks">Kaijun</a> |  -->
+                    <!-- <iframe
+                        style="margin-left: 2px; margin-bottom:-5px;"
+                        frameborder="0" scrolling="0" width="91px" height="20px"
+                        src="https://ghbtns.com/github-btn.html?user=kaijun&repo=hexo-theme-huxblog&type=star&count=true" >
+                    </iframe> -->
+                </p>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<!-- jQuery -->
+<script src="/js/jquery.min.js"></script>
+
+<!-- Bootstrap Core JavaScript -->
+<script src="/js/bootstrap.min.js"></script>
+
+<!-- Custom Theme JavaScript -->
+<script src="/js/hux-blog.min.js"></script>
+
+
+<!-- async load function -->
+<script>
+    function async(u, c) {
+      var d = document, t = 'script',
+          o = d.createElement(t),
+          s = d.getElementsByTagName(t)[0];
+      o.src = u;
+      if (c) { o.addEventListener('load', function (e) { c(null, e); }, false); }
+      s.parentNode.insertBefore(o, s);
+    }
+</script>
+
+<!-- 
+     Because of the native support for backtick-style fenced code blocks 
+     right within the Markdown is landed in Github Pages, 
+     From V1.6, There is no need for Highlight.js, 
+     so Huxblog drops it officially.
+
+     - https://github.com/blog/2100-github-pages-now-faster-and-simpler-with-jekyll-3-0  
+     - https://help.github.com/articles/creating-and-highlighting-code-blocks/    
+-->
+<!--
+    <script>
+        async("http://cdn.bootcss.com/highlight.js/8.6/highlight.min.js", function(){
+            hljs.initHighlightingOnLoad();
+        })
+    </script>
+    <link href="http://cdn.bootcss.com/highlight.js/8.6/styles/github.min.css" rel="stylesheet">
+-->
+
+
+<!-- jquery.tagcloud.js -->
+<script>
+    // only load tagcloud.js in tag.html
+    if($('#tag_cloud').length !== 0){
+        async("https://turling.me/js/jquery.tagcloud.js",function(){
+            $.fn.tagcloud.defaults = {
+                //size: {start: 1, end: 1, unit: 'em'},
+                color: {start: '#bbbbee', end: '#0085a1'},
+            };
+            $('#tag_cloud a').tagcloud();
+        })
+    }
+</script>
+
+<script type="text/javascript">
+    const gitalk = new Gitalk({
+        clientID: 'd526317e8c13bd9e1344',
+        clientSecret: '3f2e043a8a04f4babf9e5d0804fd8e14f1b8d75d',
+        repo: 'blog-comments',
+        owner: 'hudingyu',
+        admin: ['hudingyu'],
+        id: md5(location.pathname),      // Ensure uniqueness and length less than 50
+        distractionFreeMode: false  // Facebook-like distraction free mode
+    })
+
+    gitalk.render('gitalk-container')
+  </script>
+
+<!--fastClick.js -->
+<script>
+    async("https://cdn.bootcss.com/fastclick/1.0.6/fastclick.min.js", function(){
+        var $nav = document.querySelector("nav");
+        if($nav) FastClick.attach($nav);
+    })
+</script>
+
+
+<!-- Google Analytics -->
+
+
+
+
+<!-- Baidu Tongji -->
+
+<script>
+    // dynamic User by Hux
+    var _baId = '140353961df3b8b3911818d8a175b712';
+
+    // Originial
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "//hm.baidu.com/hm.js?" + _baId;
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+</script>
+
+
+<!-- Side Catalog -->
+
+<script type="text/javascript">
+    function generateCatalog (selector) {
+        var P = $('div.post-container'),a,n,t,l,i,c;
+        a = P.find('h1,h2,h3,h4,h5,h6');
+        a.each(function () {
+            n = $(this).prop('tagName').toLowerCase();
+            i = "#"+$(this).prop('id');
+            t = $(this).text();
+            c = $('<a href="'+i+'" rel="nofollow">'+t+'</a>');
+            l = $('<li class="'+n+'_nav"></li>').append(c);
+            $(selector).append(l);
+        });
+        return true;    
+    }
+
+    generateCatalog(".catalog-body");
+
+    // toggle side catalog
+    $(".catalog-toggle").click((function(e){
+        e.preventDefault();
+        $('.side-catalog').toggleClass("fold")
+    }))
+
+    /*
+     * Doc: https://github.com/davist11/jQuery-One-Page-Nav
+     * Fork by Hux to support padding
+     */
+    async("/js/jquery.nav.js", function () {
+        $('.catalog-body').onePageNav({
+            currentClass: "active",
+            changeHash: !1,
+            easing: "swing",
+            filter: "",
+            scrollSpeed: 700,
+            scrollOffset: 0,
+            scrollThreshold: .2,
+            begin: null,
+            end: null,
+            scrollChange: null,
+            padding: 80
+        });
+    });
+</script>
+
+
+
+
+
+<!-- Image to hack wechat -->
+<!-- <img src="https://turling.me/img/icon_wechat.png" width="0" height="0" /> -->
+<!-- Migrate from head to bottom, no longer block render and still work -->
+
+</body>
+
+</html>
